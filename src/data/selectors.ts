@@ -113,6 +113,40 @@ export function aggregateModel(models: ModelProfile[]): ModelProfile {
       churnRate: avg("churnRate"),
       engagementRate: avg("engagementRate"),
     },
+    platformEconomics: {
+      reddit: {
+        cost: models.reduce((s, m) => s + m.platformEconomics.reddit.cost, 0),
+        revenue: models.reduce((s, m) => s + m.platformEconomics.reddit.revenue, 0),
+      },
+      twitter: {
+        cost: models.reduce((s, m) => s + m.platformEconomics.twitter.cost, 0),
+        revenue: models.reduce((s, m) => s + m.platformEconomics.twitter.revenue, 0),
+      },
+      instagram: {
+        cost: models.reduce((s, m) => s + m.platformEconomics.instagram.cost, 0),
+        revenue: models.reduce((s, m) => s + m.platformEconomics.instagram.revenue, 0),
+      },
+      telegram: {
+        cost: models.reduce((s, m) => s + m.platformEconomics.telegram.cost, 0),
+        revenue: models.reduce((s, m) => s + m.platformEconomics.telegram.revenue, 0),
+      },
+    },
+    subscriptionEconomics: {
+      pricePerSub:
+        models.reduce((s, m) => s + m.subscriptionEconomics.pricePerSub * m.onlyFans.activeSubscribers, 0) /
+        Math.max(sumOF.activeSubscribers, 1),
+      costPerSub:
+        models.reduce((s, m) => s + m.subscriptionEconomics.costPerSub * m.onlyFans.newSubscribers, 0) /
+        Math.max(sumOF.newSubscribers, 1),
+      revenuePerSub:
+        sumOF.totalRevenue / Math.max(sumOF.activeSubscribers, 1),
+      lifetimeValue:
+        models.reduce((s, m) => s + m.subscriptionEconomics.lifetimeValue * m.onlyFans.activeSubscribers, 0) /
+        Math.max(sumOF.activeSubscribers, 1),
+      paybackDays:
+        models.reduce((s, m) => s + m.subscriptionEconomics.paybackDays * m.onlyFans.activeSubscribers, 0) /
+        Math.max(sumOF.activeSubscribers, 1),
+    },
     notes: {
       weeklyReport: "Aggregated view across all model operations. Switch to a specific model in the sidebar for individual reports.",
       upcomingPlan: "Aggregated view — see individual models for plans.",
