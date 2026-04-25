@@ -7,6 +7,8 @@ import { ModelOverview } from "@/components/dashboard/ModelOverview";
 import { PlatformBreakdown } from "@/components/dashboard/PlatformBreakdown";
 import { OnlyFansSection } from "@/components/dashboard/OnlyFansSection";
 import { ReportsSection } from "@/components/dashboard/ReportsSection";
+import { PlatformEconomicsSection } from "@/components/dashboard/PlatformEconomicsSection";
+import { SubscriptionEconomicsSection } from "@/components/dashboard/SubscriptionEconomicsSection";
 import { FollowersChart } from "@/components/dashboard/charts/FollowersChart";
 import { PlatformChart } from "@/components/dashboard/charts/PlatformChart";
 import { RevenueChart } from "@/components/dashboard/charts/RevenueChart";
@@ -174,6 +176,22 @@ const Index = () => {
               OnlyFans Performance
             </h2>
             <OnlyFansSection model={model} range={range} />
+          </section>
+
+          {/* Platform economics */}
+          <section className="mb-6">
+            <h2 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wider">
+              Cost & Revenue per Platform
+            </h2>
+            <PlatformEconomicsSection model={model} />
+          </section>
+
+          {/* Subscription economics */}
+          <section className="mb-6">
+            <h2 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wider">
+              Subscription Economics
+            </h2>
+            <SubscriptionEconomicsSection model={model} />
           </section>
 
           {/* Reports */}

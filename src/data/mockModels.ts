@@ -86,6 +86,19 @@ export const MODELS: ModelProfile[] = [
       trafficClicks: 18420,
       engagementRate: 0.072,
     },
+    platformEconomics: {
+      reddit: { cost: 1800, revenue: 18320 },
+      twitter: { cost: 1200, revenue: 8400 },
+      instagram: { cost: 3400, revenue: 16100 },
+      telegram: { cost: 600, revenue: 5410 },
+    },
+    subscriptionEconomics: {
+      pricePerSub: 14.99,
+      costPerSub: 17.0,
+      revenuePerSub: 15.46,
+      lifetimeValue: 96,
+      paybackDays: 34,
+    },
     notes: {
       weeklyReport:
         "Strong week — Reddit posts in r/gonewild drove 38% of OF clicks. Instagram @luna.vega gained 4.1k followers from a viral reel. Two PPV drops generated $4,200 combined.",
@@ -116,6 +129,19 @@ export const MODELS: ModelProfile[] = [
       churnRate: 0.05,
       trafficClicks: 9120,
       engagementRate: 0.058,
+    },
+    platformEconomics: {
+      reddit: { cost: 1200, revenue: 9420 },
+      twitter: { cost: 800, revenue: 4800 },
+      instagram: { cost: 2200, revenue: 9600 },
+      telegram: { cost: 300, revenue: 3020 },
+    },
+    subscriptionEconomics: {
+      pricePerSub: 12.99,
+      costPerSub: 22.7,
+      revenuePerSub: 14.59,
+      lifetimeValue: 72,
+      paybackDays: 47,
     },
     notes: {
       weeklyReport:
@@ -150,6 +176,19 @@ export const MODELS: ModelProfile[] = [
       churnRate: 0.038,
       trafficClicks: 2840,
       engagementRate: 0.064,
+    },
+    platformEconomics: {
+      reddit: { cost: 700, revenue: 2400 },
+      twitter: { cost: 400, revenue: 1100 },
+      instagram: { cost: 1100, revenue: 2200 },
+      telegram: { cost: 150, revenue: 720 },
+    },
+    subscriptionEconomics: {
+      pricePerSub: 9.99,
+      costPerSub: 26.7,
+      revenuePerSub: 15.58,
+      lifetimeValue: 58,
+      paybackDays: 62,
     },
     notes: {
       weeklyReport:
@@ -186,6 +225,19 @@ export const MODELS: ModelProfile[] = [
       trafficClicks: 28400,
       engagementRate: 0.081,
     },
+    platformEconomics: {
+      reddit: { cost: 2400, revenue: 28100 },
+      twitter: { cost: 1800, revenue: 14200 },
+      instagram: { cost: 4800, revenue: 28200 },
+      telegram: { cost: 900, revenue: 7920 },
+    },
+    subscriptionEconomics: {
+      pricePerSub: 14.99,
+      costPerSub: 16.2,
+      revenuePerSub: 14.97,
+      lifetimeValue: 128,
+      paybackDays: 28,
+    },
     notes: {
       weeklyReport:
         "Top performer this week — $11.4k revenue, conversion at 9.4%. Instagram @raven.cole drove most quality traffic. Tips up 22% w/w.",
@@ -216,6 +268,19 @@ export const MODELS: ModelProfile[] = [
       churnRate: 0.21,
       trafficClicks: 1240,
       engagementRate: 0.029,
+    },
+    platformEconomics: {
+      reddit: { cost: 400, revenue: 1100 },
+      twitter: { cost: 300, revenue: 620 },
+      instagram: { cost: 600, revenue: 980 },
+      telegram: { cost: 100, revenue: 420 },
+    },
+    subscriptionEconomics: {
+      pricePerSub: 9.99,
+      costPerSub: 116.7,
+      revenuePerSub: 9.75,
+      lifetimeValue: 32,
+      paybackDays: 0,
     },
     notes: {
       weeklyReport:
