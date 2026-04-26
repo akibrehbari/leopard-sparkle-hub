@@ -94,7 +94,10 @@ async function get<T>(
     try {
       resp = await fetch(url, {
         headers: {
-          Authorization: `Bearer ${apiKey}`,
+          // Infloww's OpenAPI docs say "Authorization: Bearer <token>" but the
+          // live API actually rejects the Bearer prefix with 401 and only
+          // accepts the raw key. Verified empirically against /v1/creators.
+          Authorization: apiKey,
           "x-oid": oid,
           Accept: "application/json",
         },
