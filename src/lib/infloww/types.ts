@@ -58,18 +58,23 @@ export interface InflowwCreator {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Spec enums use TitleCase ("Subscription", "Recurring Subscription", ...).
- * We model exactly what the spec returns and treat anything else as "Unknown".
+ * Transaction types observed in the live API. NOTE: the OpenAPI spec lists
+ * `"Recurring Subscription"` (with a space), but the live API actually
+ * returns `"RecurringSubscription"` (no space) — verified against real data.
+ * We accept both spellings just in case Infloww switches back. Anything else
+ * is widened to `string` so unknown types parse instead of throwing.
  */
 export type InflowwTransactionType =
   | "Subscription"
+  | "RecurringSubscription"
   | "Recurring Subscription"
   | "Tips"
   | "Messages"
   | "Referrals"
   | "Streams"
   | "Posts"
-  | "Unknown";
+  | "Unknown"
+  | (string & {});
 
 export type InflowwTipSource =
   | "Profile"
@@ -127,11 +132,11 @@ export interface InflowwRefund {
   refundTime: string | null;
   paymentStatus: InflowwRefundStatus;
   /**
-   * Number, decimal dollars per the example (29.99). Treat as a number value;
-   * if a future deployment returns cents instead, the derive helpers handle
-   * both via heuristics.
+   * String of the smallest currency unit (cents). e.g. "2999" = $29.99 USD.
+   * The OpenAPI spec example showed "29.99" decimal but live data is cents
+   * matching the transactions endpoint. Use inflowwAmount(value, "cents").
    */
-  paymentAmount: number;
+  paymentAmount: string;
   transactionType: InflowwRefundTransactionType;
   currency: string;
 }
@@ -142,17 +147,22 @@ export interface InflowwRefund {
 
 export type InflowwLinkType = "CAMPAIGN" | "TRIAL" | "TRACKING";
 
+/**
+ * Spec says all numeric link fields are integers, but the live API returns
+ * them as JSON strings (e.g. "0", "1", "150000"). We type as `string | number`
+ * and use inflowwAmount() / Number() at the read site to coerce safely.
+ */
 interface InflowwLinkBase {
   id: string;
   finishedFlag: boolean;
-  earningsGross: number;
-  earningsNet: number;
-  payingFansCount: number;
+  earningsGross: string | number;
+  earningsNet: string | number;
+  payingFansCount: string | number;
   currency: string;
   /** Unix milliseconds as a string. */
   createdTime: string;
-  /** Unix milliseconds as a string. */
-  expiredTime: string;
+  /** Unix milliseconds as a string, may be null. */
+  expiredTime: string | null;
   /** Unix milliseconds as a string. */
   updatedTime: string;
 }
@@ -163,13 +173,13 @@ export interface InflowwCampaignLink extends InflowwLinkBase {
   message: string;
   /** Targeting: new fans, expired (re-sub), or both. */
   type: "new" | "expired" | "both";
-  subCount: number;
-  /** 0 means no limit. */
-  subLimit: number;
+  subCount: string | number;
+  /** "0" means no limit. */
+  subLimit: string | number;
   /** Days. */
-  subDuration: number;
+  subDuration: string | number;
   /** Percent (e.g. 30 = 30%). */
-  discount: number;
+  discount: string | number;
 }
 
 export interface InflowwTrialLink extends InflowwLinkBase {
@@ -177,38 +187,38 @@ export interface InflowwTrialLink extends InflowwLinkBase {
   name: string;
   /** Path-suffix used to construct the public URL. */
   code: string;
-  subDuration: number;
-  subLimit: number;
-  subCount: number;
-  source: string;
+  subDuration: string | number;
+  subLimit: string | number;
+  subCount: string | number;
+  source: string | null;
   autoDefaultList: boolean;
-  defaultListName: string;
+  defaultListName: string | null;
   relTagNames: string[];
   /** Percentage (string) of trial fans who later spent. */
   spendClaim: string;
   /** Average earnings per subscriber (smallest unit). */
-  aepsGross: number;
-  aepsNet: number;
+  aepsGross: string | number;
+  aepsNet: string | number;
 }
 
 export interface InflowwTrackingLink extends InflowwLinkBase {
   linkKind: "TRACKING";
   name: string;
   code: string;
-  clickCount: number;
-  subCount: number;
-  source: string;
+  clickCount: string | number;
+  subCount: string | number;
+  source: string | null;
   autoDefaultList: boolean;
-  defaultListName: string;
+  defaultListName: string | null;
   relTagNames: string[];
   /** Percentages as strings. */
   subscriptionCVR: string;
   spendingCVR: string;
   /** Smallest unit. */
-  epcGross: number;
-  epcNet: number;
-  aepsGross: number;
-  aepsNet: number;
+  epcGross: string | number;
+  epcNet: string | number;
+  aepsGross: string | number;
+  aepsNet: string | number;
 }
 
 export type InflowwLink =

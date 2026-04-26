@@ -2,7 +2,12 @@
 
 import { useRefunds } from "@/lib/infloww/hooks";
 import { summarizeRefunds } from "@/lib/infloww/derive";
-import { formatUSD, formatNumber, parseInflowwTime } from "@/lib/infloww/util";
+import {
+  formatUSD,
+  formatNumber,
+  inflowwAmount,
+  parseInflowwTime,
+} from "@/lib/infloww/util";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChartCard } from "./ChartCard";
 import { AlertTriangle, RotateCcw } from "lucide-react";
@@ -114,7 +119,9 @@ export function RefundsSection({ creatorId, startTime, endTime, disabled }: Prop
                       </span>
                     </td>
                     <td className="py-2 px-2 text-right tabular-nums font-medium text-destructive">
-                      −{formatUSD(r.paymentAmount, { fractional: true })}
+                      −{formatUSD(inflowwAmount(r.paymentAmount, "cents"), {
+                        fractional: true,
+                      })}
                     </td>
                   </tr>
                 );

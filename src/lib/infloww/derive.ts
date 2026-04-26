@@ -31,8 +31,14 @@ export type RevenueChannel =
   | "Referrals"
   | "Other";
 
-const CHANNEL_BY_TYPE: Record<InflowwTransactionType, RevenueChannel> = {
+/**
+ * Map raw transaction types to dashboard channels. The spec lists
+ * "Recurring Subscription" with a space, but the live API returns
+ * "RecurringSubscription" without one — we accept both.
+ */
+const CHANNEL_BY_TYPE: Record<string, RevenueChannel> = {
   Subscription: "Subscriptions",
+  RecurringSubscription: "Subscriptions",
   "Recurring Subscription": "Subscriptions",
   Tips: "Tips",
   Messages: "Messages",
@@ -100,25 +106,22 @@ export function totalRevenue(transactions: InflowwTransaction[]): RevenueTotals 
 }
 
 /**
- * Active subscribers = unique fanIds with a subscription transaction
- * inside the window. We use the spec enum types (Subscription /
- * Recurring Subscription) for this.
+ * Active subscribers = unique fanIds with any subscription transaction
+ * (new or renewal) in the window.
  */
 export function activeSubscribers(transactions: InflowwTransaction[]): number {
   const fans = new Set<string>();
   for (const t of transactions) {
     if (!isCountable(t)) continue;
-    if (t.type === "Subscription" || t.type === "Recurring Subscription") {
-      if (t.fanId) fans.add(t.fanId);
-    }
+    if (isAnySubscription(t) && t.fanId) fans.add(t.fanId);
   }
   return fans.size;
 }
 
 /**
- * New subscribers = unique fanIds whose FIRST subscription transaction in
- * the window is type "Subscription" (not "Recurring Subscription"). This
- * approximates new sign-ups.
+ * New subscribers = unique fanIds with a first-time "Subscription" event
+ * (as opposed to "RecurringSubscription" / "Recurring Subscription" which
+ * are renewals). Approximates new sign-ups in the window.
  */
 export function newSubscribers(transactions: InflowwTransaction[]): number {
   const fans = new Set<string>();
@@ -129,6 +132,17 @@ export function newSubscribers(transactions: InflowwTransaction[]): number {
     }
   }
   return fans.size;
+}
+
+function isRenewal(t: InflowwTransaction): boolean {
+  return (
+    t.type === "RecurringSubscription" ||
+    t.type === "Recurring Subscription"
+  );
+}
+
+function isAnySubscription(t: InflowwTransaction): boolean {
+  return t.type === "Subscription" || isRenewal(t);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -309,9 +323,7 @@ export function subscriberFlow(
 
   for (const t of transactions) {
     if (!isCountable(t)) continue;
-    if (t.type !== "Subscription" && t.type !== "Recurring Subscription") {
-      continue;
-    }
+    if (!isAnySubscription(t)) continue;
     const d = parseInflowwTime(t.createdTime);
     if (!d) continue;
     const point = ensure(d);
@@ -353,7 +365,8 @@ export function summarizeRefunds(refunds: InflowwRefund[]): RefundSummary {
   let completed = 0;
   for (const r of refunds) {
     count += 1;
-    totalAmount += inflowwAmount(r.paymentAmount, "decimal");
+    // Live API returns paymentAmount as cents-string ("2999" = $29.99).
+    totalAmount += inflowwAmount(r.paymentAmount, "cents");
     if (r.paymentStatus === "done") completed += 1;
   }
   return { count, totalAmount, completed };
@@ -377,8 +390,10 @@ export function summarizeLinks(links: InflowwLink[]): LinkSummary {
   for (const link of links) {
     totalEarningsNet += inflowwAmount(link.earningsNet, "cents");
     totalEarningsGross += inflowwAmount(link.earningsGross, "cents");
-    if ("subCount" in link && typeof link.subCount === "number") {
-      totalSubs += link.subCount;
+    // subCount is "string | number" in live data; coerce safely.
+    if ("subCount" in link && link.subCount !== undefined) {
+      const n = Number(link.subCount);
+      if (Number.isFinite(n)) totalSubs += n;
     }
   }
   return {

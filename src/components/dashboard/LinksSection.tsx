@@ -3,7 +3,12 @@
 import { useState } from "react";
 import { useLinks } from "@/lib/infloww/hooks";
 import { summarizeLinks } from "@/lib/infloww/derive";
-import { formatUSD, formatNumber, parseInflowwTime } from "@/lib/infloww/util";
+import {
+  formatUSD,
+  formatNumber,
+  inflowwAmount,
+  parseInflowwTime,
+} from "@/lib/infloww/util";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChartCard } from "./ChartCard";
 import { AlertTriangle, Link2, Megaphone, Gift } from "lucide-react";
@@ -123,7 +128,8 @@ function LinkRow({ link }: { link: InflowwLink }) {
     ? (link as InflowwCampaignLink).message || `Campaign ${link.id}`
     : (link as InflowwTrialLink | InflowwTrackingLink).name || `Link ${link.id}`;
 
-  const subCount = "subCount" in link ? link.subCount : 0;
+  // Live API returns numeric link fields as strings; coerce safely.
+  const subCount = "subCount" in link ? Number(link.subCount ?? 0) : 0;
 
   return (
     <div className="rounded-lg bg-secondary/30 border border-border p-3 hover:bg-secondary/50 transition-colors">
@@ -162,14 +168,14 @@ function LinkRow({ link }: { link: InflowwLink }) {
             )}
             {isTracking && (
               <span>
-                {formatNumber((link as InflowwTrackingLink).clickCount)} clicks
+                {formatNumber(Number((link as InflowwTrackingLink).clickCount ?? 0))} clicks
               </span>
             )}
           </div>
         </div>
         <div className="text-right shrink-0">
           <div className="text-sm font-bold tabular-nums text-success">
-            {formatUSD(link.earningsNet / 100)}
+            {formatUSD(inflowwAmount(link.earningsNet, "cents"))}
           </div>
           <div className="text-[11px] text-muted-foreground tabular-nums">
             {formatNumber(subCount)} sub{subCount === 1 ? "" : "s"}
@@ -193,9 +199,10 @@ function LinkRow({ link }: { link: InflowwLink }) {
           <div>
             <span className="text-muted-foreground">EPC net: </span>
             <span className="tabular-nums text-foreground">
-              {formatUSD((link as InflowwTrackingLink).epcNet / 100, {
-                fractional: true,
-              })}
+              {formatUSD(
+                inflowwAmount((link as InflowwTrackingLink).epcNet, "cents"),
+                { fractional: true },
+              )}
             </span>
           </div>
         </div>
