@@ -1,20 +1,22 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { DateRange } from "@/data/selectors";
+import { DASHBOARD_RANGES, type DashboardRange } from "@/lib/infloww/range";
 import { Download, Search } from "lucide-react";
 
 interface Props {
   title: string;
   subtitle: string;
-  range: DateRange;
-  onRangeChange: (r: DateRange) => void;
+  range: DashboardRange;
+  onRangeChange: (r: DashboardRange) => void;
 }
 
-const RANGES: { id: DateRange; label: string }[] = [
-  { id: "7d", label: "7d" },
-  { id: "30d", label: "30d" },
-  { id: "90d", label: "90d" },
-];
+const RANGE_LABELS: Record<DashboardRange, string> = {
+  "7d": "7d",
+  "30d": "30d",
+  "90d": "90d",
+};
 
 export function Topbar({ title, subtitle, range, onRangeChange }: Props) {
   return (
@@ -31,18 +33,18 @@ export function Topbar({ title, subtitle, range, onRangeChange }: Props) {
           <span>Search…</span>
         </div>
         <div className="flex items-center rounded-lg bg-secondary/50 border border-border p-1">
-          {RANGES.map((r) => (
+          {DASHBOARD_RANGES.map((r) => (
             <button
-              key={r.id}
-              onClick={() => onRangeChange(r.id)}
+              key={r}
+              onClick={() => onRangeChange(r)}
               className={cn(
                 "px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
-                range === r.id
+                range === r
                   ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
-              {r.label}
+              {RANGE_LABELS[r]}
             </button>
           ))}
         </div>

@@ -1,3 +1,40 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# Dependencies
+node_modules/
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Testing
+/coverage
+
+# Next.js build output
+/.next/
+/out/
+
+# Production builds (legacy / generic)
+/build
+/dist
+/dist-ssr
+
+# Environment files — never commit secrets.
+# .env.example IS committed as a documented template.
+.env
+.env.*
+!.env.example
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
 # Logs
 logs
 *.log
@@ -7,16 +44,16 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# Local probe / discovery output (may contain non-PII business data)
+scripts/.probe-output.json
 
-# Editor directories and files
+# OS / Editor
+.DS_Store
+*.pem
+*.local
+.idea
 .vscode/*
 !.vscode/extensions.json
-.idea
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj

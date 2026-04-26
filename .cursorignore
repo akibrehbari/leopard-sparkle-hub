@@ -1,0 +1,10 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Other sensitive files
+*.pem
+*.key
+secrets/
+credentials.json

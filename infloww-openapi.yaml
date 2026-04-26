@@ -1,0 +1,1261 @@
+openapi: 3.1.0
+x-stoplight:
+  id: wnttpt5i2x0gz
+info:
+  title: Infloww API
+  version: '1.0'
+  summary: Explore Infloww's APIs to stream data to your dashboards.
+  description: |-
+    ## What is Infloww API?
+    The Infloww API is a REST-based tool designed to stream raw performance data directly into your internal dashboards or custom BI tools.
+
+    ## API capabilities
+    To ensure data integrity and security, the Infloww API currently operates under the following parameters:
+    - **Read-only access:** Pull data for analysis without the risk of altering or deleting data within your Infloww
+    - **Integration limits:** This initial phase focuses on data retrieval. It does not support third-party tools requiring "action" permissions, such as external AI chatbots or automation platforms like Zapier.
+
+    ## Request Headers
+    All API requests must include the following headers:
+
+    - Authorization: Bearer token used for API authentication.
+    - x-oid: The agency identifier associated with your API key. This can be found in the API key page in Infloww ("Agency OID").
+
+    ⚠️ If your request fails, please include the `x-request-id` from the response headers when contacting support. This helps us quickly locate and diagnose the issue.
+
+    ## Available endpoints
+    Access specific data points to fuel your agency's reporting:
+    - **Creator information:** General profile data
+    - **Revenue breakdown:** Detailed earnings by creator
+    - **Chargeback analytics:** Tracking reversals and chargebacks
+    - **Marketing analytics:** Performance stats for promotions, free trial links, and tracking links
+    - More endpoints coming soon
+
+    ## Access restrictions
+    - All Infloww API endpoints currently return a maximum one year of historical data.This standard applies to the transactions and refunds endpoints, which are explicitly capped at one year.
+        - The promotions, free trial and tracking links endpoints return the most recent 10,000 entries or data from the past year, whichever limit is reached first.
+        - Connect creators endpoints have no time restrictions and are not subject to these data limitations.
+    - There is a delay in data synchronization. Please see the description of each function for details.
+
+    ## Your Infloww API key
+    Generate your API key directly from your Infloww. [Learn how here](https://help.infloww.com/en/articles/596825-beta-infloww-api#h_99e8440d03).
+  contact:
+    name: ''
+    url: ''
+    email: ''
+  termsOfService: ''
+servers:
+  - url: 'https://openapi.infloww.com/'
+    description: Infloww API
+paths:
+  /v1/transactions:
+    get:
+      summary: List Transactions
+      tags: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                x-examples:
+                  Example 1:
+                    data:
+                      list:
+                        - id: 10001
+                          transactionId: txn_20260227001
+                          fanId: fan_987654
+                          fanName: JohnDoe
+                          createdTime: '2026-02-27T15:30:00Z'
+                          type: tip
+                          tipSource: chat
+                          status: completed
+                          amount: 50
+                          fee: 5
+                          net: 45
+                          currency: USD
+                          platformCode: OF
+                    cursor: eyJpZCI6MTAwMDF9
+                    hasMore: true
+                    errorMessage: null
+                properties:
+                  data:
+                    type: object
+                    description: 'Returned upon success, corresponding to the specific business data structure.'
+                    properties:
+                      list:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              description: Unique identifier
+                            transactionId:
+                              type: string
+                              description: OnlyFans transaction ID
+                            fanId:
+                              type: string
+                              description: Fan id
+                            fanName:
+                              type: string
+                              description: Fan name
+                            createdTime:
+                              type: string
+                              description: Creation time (unix timestamp in milliseconds)
+                            tipSource:
+                              type: string
+                              description: Tip source
+                              enum:
+                                - Profile
+                                - PostAll
+                                - Chat
+                                - Stream
+                                - Story
+                                - Unknown
+                              format: enum
+                            type:
+                              description: Transaction type
+                              type: string
+                              enum:
+                                - Subscription
+                                - Recurring Subscription
+                                - Tips
+                                - Messages
+                                - Referrals
+                                - Streams
+                                - Posts
+                                - Unknown
+                              format: enum
+                            status:
+                              type: string
+                              description: Transaction status
+                              enum:
+                                - loading
+                                - done
+                                - undo
+                                - pending_return
+                              format: enum
+                            amount:
+                              type: string
+                              description: Transaction amount (in the smallest unit of the currency)
+                            fee:
+                              type: string
+                              description: Fee amount (in the smallest unit of the currency)
+                            net:
+                              type: string
+                              description: Net amount (in the smallest unit of the currency)
+                            currency:
+                              type: string
+                              description: Currency code
+                      platformCode:
+                        type: string
+                        x-stoplight:
+                          id: 6wm7asogg5z1o
+                        description: Platform code
+                  cursor:
+                    type: string
+                    description: Pagination cursor for retrieving next page of results
+                  hasMore:
+                    type: boolean
+                    description: Indicates whether more data is available.
+              examples:
+                Example 1:
+                  value:
+                    data:
+                      platformCode: OnlyFans
+                      list:
+                        - id: '001'
+                          transactionId: xxx
+                          fanId: onlyfans-02436724
+                          fanName: xxxx
+                          createdTime: '1750019015000'
+                          type: Messages
+                          status: loading
+                          amount: '7400'
+                          fee: '1480'
+                          net: '5920'
+                          currency: USD
+                        - id: '002'
+                          transactionId: xxx
+                          fanId: onlyfans-97572292
+                          fanName: Joseph· Anderson
+                          createdTime: '1750020601000'
+                          type: Messages
+                          status: loading
+                          amount: '13600'
+                          fee: '2720'
+                          net: '10880'
+                          currency: USD
+                        - id: '003'
+                          transactionId: xxx
+                          fanId: onlyfans-74521039
+                          fanName: Mary· Jones
+                          createdTime: '1750026171000'
+                          type: Messages
+                          status: loading
+                          amount: '12300'
+                          fee: '2460'
+                          net: '9840'
+                          currency: USD
+                    cursor: '001'
+                    hasMore: true
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '429':
+          $ref: '#/components/responses/429'
+        '500':
+          $ref: '#/components/responses/500'
+      operationId: get-transactions
+      description: |-
+        Pull a paginated list of revenue transactions for your connected creators. Filter by date range or transaction type—including tips, subscriptions, and ad revenue.
+
+        > When synchronizing OnlyFans data, there is a delay of up to 1 hour. Transaction orders with a "loading" status are synchronized every 12 hours.
+      x-stoplight:
+        id: 67mitxq4tbi9i
+      parameters:
+        - $ref: '#/components/parameters/Authorization'
+        - $ref: '#/components/parameters/x-oid'
+        - $ref: '#/components/parameters/startTime'
+        - $ref: '#/components/parameters/endTime'
+        - $ref: '#/components/parameters/creatorId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/platformCode'
+    parameters: []
+  /v1/refunds:
+    parameters: []
+    get:
+      summary: List Refunds
+      tags: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                x-examples:
+                  Example 1:
+                    data:
+                      list:
+                        - id: 20001
+                          transactionId: txn_20260227002
+                          fanId: fan_123456
+                          paymentTime: '2026-02-27T14:20:00Z'
+                          refundTime: null
+                          paymentStatus: paid
+                          paymentAmount: 29.99
+                          transactionType: subscription
+                          currency: USD
+                        - id: 20002
+                          transactionId: txn_20260227003
+                          fanId: fan_789012
+                          paymentTime: '2026-02-27T15:05:00Z'
+                          refundTime: '2026-02-27T16:00:00Z'
+                          paymentStatus: refunded
+                          paymentAmount: 49.99
+                          transactionType: tip
+                          currency: USD
+                    hasMore: true
+                    cursor: eyJpZCI6MjAwMDJ9
+                    errorMessage: null
+                properties:
+                  data:
+                    type: object
+                    description: 'Returned upon success, corresponding to the specific business data structure.'
+                    properties:
+                      list:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              description: Unique identifier
+                            transactionId:
+                              type: string
+                              description: OnlyFans transaction ID
+                            fanId:
+                              type: string
+                              description: Fan ID
+                            paymentTime:
+                              type: string
+                              description: Transaction creation time (unix timestamp in milliseconds)
+                            refundTime:
+                              type: string
+                              description: Refund creation time (unix timestamp in milliseconds)
+                            paymentStatus:
+                              type: string
+                              description: Refund status
+                              enum:
+                                - undo
+                                - loading
+                                - done
+                              format: enum
+                            paymentAmount:
+                              type: number
+                              description: Refund amount (in the smallest unit of the currency)
+                            transactionType:
+                              type: string
+                              description: Transaction type
+                              enum:
+                                - tips
+                                - post
+                                - chat_messages
+                                - stream
+                                - subscribes
+                              format: enum
+                            currency:
+                              type: string
+                              description: Currency code
+                      platformCode:
+                        type: string
+                        x-stoplight:
+                          id: yjr1tl1liipto
+                        description: Platform code
+                  hasMore:
+                    type: boolean
+                    description: Indicates whether more data is available.
+                  cursor:
+                    type: string
+                    description: Pagination cursor for retrieving next page of results
+              examples:
+                Example 1:
+                  value:
+                    data:
+                      list:
+                        - id: '20001'
+                          transactionId: txn_20260227002
+                          fanId: fan_123456
+                          paymentTime: '1772448037492'
+                          refundTime: '1772448038000'
+                          paymentStatus: undo
+                          paymentAmount: 29.99
+                          transactionType: tips
+                          currency: USD
+                        - id: '20002'
+                          transactionId: txn_20260227003
+                          fanId: fan_789012
+                          paymentTime: '1772448735447'
+                          refundTime: '1772449035447'
+                          paymentStatus: undo
+                          paymentAmount: 49.99
+                          transactionType: tips
+                          currency: USD
+                        - id: '20003'
+                          transactionId: txn_20260227004
+                          fanId: fan_345678
+                          paymentTime: '1772449135447'
+                          refundTime: '1772449535447'
+                          paymentStatus: undo
+                          paymentAmount: 19.99
+                          transactionType: tips
+                          currency: USD
+                    hasMore: true
+                    cursor: '20002'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '429':
+          $ref: '#/components/responses/429'
+        '500':
+          $ref: '#/components/responses/500'
+      operationId: get-refunds
+      x-stoplight:
+        id: otmqo0atc5lkt
+      parameters:
+        - $ref: '#/components/parameters/creatorId'
+        - $ref: '#/components/parameters/startTime'
+        - $ref: '#/components/parameters/endTime'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/Authorization'
+        - $ref: '#/components/parameters/x-oid'
+        - $ref: '#/components/parameters/platformCode'
+      description: |-
+        Pull a paginated list of all refund amounts associated with a connected creator.
+
+        > When synchronizing OnlyFans data, there is a delay of up to 1 hour.
+  /v1/creators:
+    get:
+      summary: List Connected Creators
+      tags: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                x-examples:
+                  Example 1:
+                    data:
+                      list:
+                        - id: 40001
+                          name: John Smith
+                          nickName: John
+                          userName: john_smith_01
+                          tagName: VIP
+                          createdTime: '2026-02-27T10:15:00Z'
+                          platformCode: OF
+                        - id: 40002
+                          name: Emily Brown
+                          nickName: Em
+                          userName: emily_b
+                          tagName: NewFan
+                          createdTime: '2026-02-26T18:45:00Z'
+                          platformCode: FANSLY
+                    cursor: eyJpZCI6NDAwMDJ9
+                    hasMore: true
+                    errorMessage: null
+                properties:
+                  data:
+                    type: object
+                    description: 'Returned upon success, corresponding to the specific business data structure.'
+                    properties:
+                      list:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              description: Unique identifier(Creator ID)
+                            name:
+                              type: string
+                              description: Creator name
+                            nickName:
+                              type: string
+                              description: Nickname
+                            userName:
+                              type: string
+                              description: Username
+                            tagName:
+                              type: string
+                              description: Tag name
+                            createdTime:
+                              type: string
+                              description: Creation time (unix timestamp in milliseconds)
+                      platformCode:
+                        type: string
+                        x-stoplight:
+                          id: mlhu87taudm9e
+                        description: Platform code
+                  cursor:
+                    type: string
+                    description: Pagination cursor for retrieving next page of results
+                  hasMore:
+                    type: boolean
+                    description: Indicates whether more data is available.
+              examples:
+                Example 1:
+                  value:
+                    data:
+                      list:
+                        - id: '001'
+                          name: test
+                          nickName: test
+                          userName: test
+                          tagName: test
+                          createdTime: '1772448735447'
+                      platformCode: Onlyfans
+                    cursor: '002'
+                    hasMore: true
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '429':
+          $ref: '#/components/responses/429'
+        '500':
+          $ref: '#/components/responses/500'
+      operationId: get-creators
+      x-stoplight:
+        id: zkm1pgckhg5vi
+      parameters:
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/Authorization'
+        - $ref: '#/components/parameters/x-oid'
+        - $ref: '#/components/parameters/platformCode'
+      description: |-
+        Pull a paginated list of your connected creators.
+
+        > When synchronizing OnlyFans data, there is a delay of up to 1 hour.
+    parameters: []
+  /v1/links:
+    get:
+      summary: List Links
+      tags: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                x-examples:
+                  Example 1:
+                    data:
+                      list:
+                        - platformCode: OF
+                          linkType: profile
+                        - platformCode: FANSLY
+                          linkType: chat
+                    hasMore: true
+                    cursor: eyJwYWdlIjoxfQ==
+                    errorMessage: null
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      platformCode:
+                        type: string
+                        x-stoplight:
+                          id: s0h8m5r5jis2g
+                        description: Platform code
+                      linkType:
+                        type: string
+                        x-stoplight:
+                          id: jm8gge71u1bmz
+                        description: Link type
+                      list:
+                        type: array
+                        description: |
+                          The returned data object.
+
+                          **Important Association Rules**: The linkTypefield in this object indicates the specific data structure type for all elements in the listarray. The correspondences are as follows:
+                          When the `platformCode` is `"OnlyFans"` and the `linkType` is `"CAMPAIGN"`, each object in the list follows the `CampaignLinkModel` structure.
+                          When the `platformCode` is `"OnlyFans"` and the `linkType` is `"TRIAL"`, each object in the list follows the `TrialLinkModel` structure.
+                          When the `platformCode` is `"OnlyFans"` and the `linkType` is `"TRACKING"`, each object in the list follows the `TrackingLinkModel` structure.
+                        items:
+                          x-stoplight:
+                            id: lev1cbj5nxqu3
+                          oneOf:
+                            - title: CampaignLinkModel
+                              description: |-
+                                When the platformCode is OnlyFans and the linkType is CAMPAIGN, the following structure will be returned 
+                                CampaignLinkModel
+                              x-stoplight:
+                                id: 3kgz5u48g1k01
+                              x-internal: false
+                              properties:
+                                id:
+                                  type: string
+                                  description: Unique identifier
+                                message:
+                                  type: string
+                                  description: Link description
+                                type:
+                                  type: string
+                                  description: Target fan type
+                                  enum:
+                                    - new
+                                    - expired
+                                    - both
+                                  format: enum
+                                subCount:
+                                  type: integer
+                                  description: Current number of subscribers
+                                subLimit:
+                                  type: integer
+                                  description: Subscription limit (`0` means no limit)
+                                subDuration:
+                                  type: integer
+                                  description: Subscription duration (in days)
+                                discount:
+                                  type: integer
+                                  description: 'Discount percentage (e.g., `30` represents `30%`)'
+                                finishedFlag:
+                                  type: boolean
+                                  description: Link completion flag
+                                earningsGross:
+                                  type: integer
+                                  description: 'Gross earnings (in the smallest unit of the currency) '
+                                earningsNet:
+                                  type: integer
+                                  description: 'Net earnings (after deducting OnlyFans platform fees, in the smallest unit of the currency) '
+                                payingFansCount:
+                                  type: integer
+                                  description: Paying fans count (includes subscription earnings)
+                                currency:
+                                  type: string
+                                  description: Currency code
+                                createdTime:
+                                  type: string
+                                  description: Link creation time (unix timestamp in milliseconds)
+                                expiredTime:
+                                  type: string
+                                  description: 'Link expiration time (unix timestamp in milliseconds) '
+                                updatedTime:
+                                  type: string
+                                  description: Infloww last update time (Unix millisecond timestamp)
+                            - title: TrialLinkModel
+                              description: |-
+                                When the platformCode is OnlyFans and the linkType is TRIAL, the following structure will be returned 
+                                TrialLinkModel
+                              x-stoplight:
+                                id: 5rdh89kctg82s
+                              x-internal: false
+                              properties:
+                                id:
+                                  type: string
+                                  description: Unique identifier
+                                name:
+                                  type: string
+                                  description: Link name
+                                code:
+                                  type: string
+                                  description: |-
+                                    The URL is constructed by concatenating this `code` with the following format:
+
+                                    OF domain + current creator name + `code`
+
+                                    For example,
+                                    creator name: xxx, 
+                                    code:123
+
+                                    Link URL: `https://onlyfans.com/xxx/123`
+                                subDuration:
+                                  type: integer
+                                  description: Trial duration (in days)
+                                subLimit:
+                                  type: integer
+                                  description: Subscription limit (`0` means no limit)
+                                subCount:
+                                  type: integer
+                                  description: Current number of subscribers
+                                finishedFlag:
+                                  type: boolean
+                                  description: Link completion flag
+                                source:
+                                  type: string
+                                  description: Link source
+                                autoDefaultList:
+                                  type: boolean
+                                  description: |-
+                                    Whether to automatically move subscribed fans to a default list
+                                    - true: yes
+                                    - false: no
+                                defaultListName:
+                                  type: string
+                                  description: Default fan list name
+                                relTagNames:
+                                  type: array
+                                  description: Related tag names
+                                  items:
+                                    type: string
+                                spendClaim:
+                                  type: string
+                                  description: 'Percentage of fans who claimed a free trial that purchased subscriptions, spent on content, or gave tips'
+                                payingFansCount:
+                                  type: integer
+                                  description: 'Number of fans who purchased subscriptions, spent on content, or gave tips'
+                                earningsGross:
+                                  type: integer
+                                  description: Gross earnings (in the smallest unit of the currency)
+                                earningsNet:
+                                  type: integer
+                                  description: 'Net earnings (after deducting OnlyFans platform fees, in the smallest unit of the currency)'
+                                aepsGross:
+                                  type: number
+                                  description: Average gross earnings per subscriber (`EarningsGross` ÷ number of subscribers)
+                                aepsNet:
+                                  type: integer
+                                  description: Average net earnings per subscriber (`EarningsNet` ÷ number of subscribers)
+                                currency:
+                                  type: string
+                                  description: Currency code
+                                createdTime:
+                                  type: string
+                                  description: Link creation time (unix timestamp in milliseconds)
+                                expiredTime:
+                                  type: string
+                                  description: 'Link expiration time (unix timestamp in milliseconds) '
+                                updatedTime:
+                                  type: string
+                                  description: Infloww last update time (unix timestamp in milliseconds)
+                            - title: TrackingLinkModel
+                              description: |-
+                                When the platformCode is OnlyFans and the linkType is TRACKING, the following structure will be returned 
+                                TrackingLinkModel
+                              x-stoplight:
+                                id: jat4iu4pt3teu
+                              x-internal: false
+                              properties:
+                                id:
+                                  type: string
+                                  description: Unique identifier
+                                name:
+                                  type: string
+                                  description: Link name
+                                code:
+                                  type: string
+                                  description: |-
+                                    The URL is constructed by concatenating this `code` with the following format:
+
+                                    OF domain + current creator name + **'c'** + `code`
+
+                                    For example,
+                                    creator name: xxx, 
+                                    code:123
+
+                                    Link URL: `https://onlyfans.com/xxx/c123`
+                                clickCount:
+                                  type: integer
+                                  description: Click count
+                                subCount:
+                                  type: integer
+                                  description: Current number of subscribers
+                                finishedFlag:
+                                  type: boolean
+                                  description: Link completion flag
+                                source:
+                                  type: string
+                                  description: Link source
+                                autoDefaultList:
+                                  type: boolean
+                                  description: |-
+                                    Whether to automatically move subscribed fans to a default list
+                                    - true: yes
+                                    - false: no
+                                defaultListName:
+                                  type: string
+                                  description: Default fan list name
+                                relTagNames:
+                                  type: array
+                                  description: Related tag names
+                                  items:
+                                    type: string
+                                earningsGross:
+                                  type: integer
+                                  description: Gross earnings (in the smallest unit of the currency)
+                                earningsNet:
+                                  type: integer
+                                  description: 'Net earnings (after deducting OnlyFans platform fees, in the smallest unit of the currency)'
+                                payingFansCount:
+                                  type: integer
+                                  description: Number of fans who spent on content or gave tips
+                                subscriptionCVR:
+                                  type: string
+                                  description: Subscription conversion rate (percentage of clicks converted to subscribers)
+                                spendingCVR:
+                                  type: string
+                                  description: 'Spending conversion rate: Percentage of fans who spent on content or gave tips'
+                                epcGross:
+                                  type: integer
+                                  description: 'Earnings per click (gross, `EarningsGross` ÷ number of clicks)'
+                                epcNet:
+                                  type: number
+                                  description: 'Earnings per click (net, after deducting OnlyFans platform fees, `EarningsNet` ÷ number of clicks) '
+                                aepsGross:
+                                  type: integer
+                                  description: Average gross earnings per subscriber (`EarningsGross` ÷ number of subscribers)
+                                aepsNet:
+                                  type: integer
+                                  description: Average net earnings per subscriber (`EarningsNet` ÷ number of subscribers)
+                                currency:
+                                  type: string
+                                  description: currency
+                                createdTime:
+                                  type: string
+                                  description: Link creation time (unix timestamp in milliseconds)
+                                expiredTime:
+                                  type: string
+                                  description: 'Link expiration time (unix timestamp in milliseconds) '
+                                updatedTime:
+                                  type: string
+                                  description: Infloww last update time （unix timestamp in milliseconds）
+                          type: object
+                  hasMore:
+                    type: boolean
+                    description: Indicates whether more data is available.
+                  cursor:
+                    type: string
+                    description: Pagination cursor for retrieving next page of results
+              examples:
+                CAMPAIGN Example:
+                  value:
+                    data:
+                      list:
+                        - id: '1001'
+                          message: Spring Promotion Campaign
+                          type: new
+                          subCount: 150
+                          subLimit: 500
+                          subDuration: 30
+                          discount: 25
+                          finishedFlag: false
+                          earningsGross: 150000
+                          earningsNet: 135000
+                          payingFansCount: 120
+                          currency: USD
+                          createdTime: '1772448037492'
+                          expiredTime: '1775040037492'
+                          updatedTime: '1772448037492'
+                    hasMore: true
+                    cursor: '1002'
+                TRIAL Example:
+                  value:
+                    data:
+                      list:
+                        - id: '2001'
+                          name: 7-Day Free Trial Link
+                          code: test
+                          subDuration: 7
+                          subLimit: 1000
+                          subCount: 850
+                          finishedFlag: false
+                          source: trial_campaign_2024
+                          autoDefaultList: true
+                          defaultListName: Trial Subscribers
+                          relTagNames:
+                            - trial_users
+                            - new_subscribers
+                          spendClaim: '0'
+                          payingFansCount: 550
+                          earningsGross: 2500000
+                          earningsNet: 2125000
+                          aepsGross: 294118
+                          aepsNet: 2500
+                          currency: USD
+                          createdTime: '1772448735447'
+                          expiredTime: '1775040735447'
+                          updatedTime: '1772448735447'
+                    hasMore: true
+                    cursor: '2002'
+                TRACKING Example:
+                  value:
+                    data:
+                      list:
+                        - id: '3001'
+                          name: Tracking Link - Spring Campaign
+                          code: test
+                          clickCount: 1250
+                          subCount: 280
+                          finishedFlag: false
+                          source: spring_campaign_2024
+                          autoDefaultList: true
+                          defaultListName: Spring Campaign Subscribers
+                          relTagNames:
+                            - spring_campaign
+                            - tracking
+                          earningsGross: 420000
+                          earningsNet: 378000
+                          payingFansCount: 210
+                          subscriptionCVR: '0'
+                          spendingCVR: '0'
+                          epcGross: 336
+                          epcNet: 3024
+                          aepsGross: 1500
+                          aepsNet: 1350
+                          currency: USD
+                          createdTime: '1772448835447'
+                          expiredTime: '1775040835447'
+                          updatedTime: '1772448835447'
+                    hasMore: true
+                    cursor: '3002'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '429':
+          $ref: '#/components/responses/429'
+        '500':
+          $ref: '#/components/responses/500'
+      operationId: get-links
+      x-stoplight:
+        id: 5wkygbioldq7l
+      parameters:
+        - $ref: '#/components/parameters/creatorId'
+        - $ref: '#/components/parameters/startTime'
+        - $ref: '#/components/parameters/endTime'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/Authorization'
+        - $ref: '#/components/parameters/x-oid'
+        - $ref: '#/components/parameters/platformCode'
+        - $ref: '#/components/parameters/linkType'
+      description: |-
+        Pull a paginated list of promotions, free trial and tracking links and their raw stats.
+
+        > When synchronizing OnlyFans data, there is a delay of up to 2 hours.
+    parameters: []
+  /v1/linkfans:
+    get:
+      summary: List Fans Associated With Links
+      tags: []
+      responses:
+        '200':
+          description: OK
+          headers: {}
+          content:
+            application/json:
+              schema:
+                type: object
+                x-examples:
+                  Example 1:
+                    data:
+                      list:
+                        - id: 30001
+                          fanId: fan_456789
+                          fanName: Alice
+                          subscriptionEarningGross: 100
+                          subscriptionEarningNet: 80
+                          postsEarningGross: 50
+                          postsEarningNet: 40
+                          messagesEarningGross: 30
+                          messagesEarningNet: 24
+                          streamsEarningGross: 20
+                          streamsEarningNet: 16
+                          tipsEarningGross: 70
+                          tipsEarningNet: 56
+                          currency: USD
+                          subscribedTime: '2026-02-01T12:00:00Z'
+                        - id: 30002
+                          fanId: fan_987654
+                          fanName: Bob
+                          subscriptionEarningGross: 60
+                          subscriptionEarningNet: 48
+                          postsEarningGross: 25
+                          postsEarningNet: 20
+                          messagesEarningGross: 15
+                          messagesEarningNet: 12
+                          streamsEarningGross: 10
+                          streamsEarningNet: 8
+                          tipsEarningGross: 40
+                          tipsEarningNet: 32
+                          currency: USD
+                          subscribedTime: '2026-02-10T09:30:00Z'
+                    hasMore: true
+                    cursor: eyJpZCI6MzAwMDJ9
+                    errorMessage: null
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      list:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              description: Unique identifier(Link ID)
+                            fanId:
+                              type: string
+                              description: Fan ID
+                            fanName:
+                              type: string
+                              description: Fan name
+                            subscriptionEarningGross:
+                              type: integer
+                              description: 'Subscription earnings (gross, in the smallest unit of the currency)'
+                            subscriptionEarningNet:
+                              type: integer
+                              description: Subscription earnings after deducting OnlyFans fees (in the smallest unit of the currency)
+                            postsEarningGross:
+                              type: integer
+                              description: 'Post earnings (gross, in the smallest unit of the currency)'
+                            postsEarningNet:
+                              type: integer
+                              description: Post earnings after deducting OnlyFans fees (in the smallest unit of the currency)
+                            messagesEarningGross:
+                              type: integer
+                              description: 'Message earnings (gross, in the smallest unit of the currency) '
+                            messagesEarningNet:
+                              type: integer
+                              description: 'Message earnings after deducting OnlyFans fees (in the smallest unit of the currency) '
+                            streamsEarningGross:
+                              type: integer
+                              description: 'Stream earnings (gross, in the smallest unit of the currency)'
+                            streamsEarningNet:
+                              type: integer
+                              description: Stream earnings after deducting OnlyFans fees (in the smallest unit of the currency)
+                            tipsEarningGross:
+                              type: integer
+                              description: 'Tip earnings (gross, in the smallest unit of the currency)'
+                            tipsEarningNet:
+                              type: integer
+                              description: Tip earnings after deducting OnlyFans fees (in the smallest unit of the currency)
+                            currency:
+                              type: string
+                              description: Currency code
+                            subscribedTime:
+                              type: string
+                              description: Subscription time (unix timestamp in milliseconds)
+                      linkType:
+                        type: string
+                        x-stoplight:
+                          id: q1twd34zldgr2
+                        description: Link type
+                      platformCode:
+                        type: string
+                        x-stoplight:
+                          id: x30ju3o0tfy7p
+                        description: Platform code
+                  hasMore:
+                    type: boolean
+                    description: Indicates whether more data is available.
+                  cursor:
+                    type: string
+                    description: Indicates whether more data is available.
+                    format: number
+              examples:
+                Example 1:
+                  value:
+                    data:
+                      list:
+                        - id: '001'
+                          fanId: '001'
+                          fanName: test
+                          subscriptionEarningGross: 0
+                          subscriptionEarningNet: 0
+                          postsEarningGross: 0
+                          postsEarningNet: 0
+                          messagesEarningGross: 0
+                          messagesEarningNet: 0
+                          streamsEarningGross: 0
+                          streamsEarningNet: 0
+                          tipsEarningGross: 0
+                          tipsEarningNet: 0
+                          currency: USD
+                          subscribedTime: '1772448835447'
+                    hasMore: true
+                    cursor: '002'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '429':
+          $ref: '#/components/responses/429'
+        '500':
+          $ref: '#/components/responses/500'
+      operationId: get-linkfans
+      x-stoplight:
+        id: hswk1dmc9xhf1
+      parameters:
+        - $ref: '#/components/parameters/creatorId'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - schema:
+            enum:
+              - CAMPAIGN
+              - TRIAL
+              - TRACKING
+            type: string
+            format: enum
+            default: TRIAL
+          in: query
+          name: linkType
+          description: We will validate the relationship between `linkType` and `platformCode`
+          allowEmptyValue: false
+          required: true
+        - schema:
+            type: number
+          in: query
+          name: linkId
+          description: Link Id
+          required: true
+        - $ref: '#/components/parameters/Authorization'
+        - $ref: '#/components/parameters/x-oid'
+        - $ref: '#/components/parameters/platformCode'
+      description: |-
+        Pull a paginated list of fans associated with each of your promotions, free trials, and tracking links.
+
+        > When synchronizing OnlyFans data, there is a delay of up to 4 hours.
+    parameters: []
+components:
+  schemas: {}
+  parameters:
+    platformCode:
+      name: platformCode
+      in: query
+      required: false
+      schema:
+        type: string
+        format: enum
+        default: OnlyFans
+        enum:
+          - OnlyFans
+      description: Platform code.
+      deprecated: false
+    creatorId:
+      name: creatorId
+      in: query
+      required: true
+      schema:
+        type: number
+      description: 'We will validate the relationship between `creatorId` , `platformCode`, and `oid`.'
+    cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: number
+      description: Pagination cursor for retrieving next page of results
+    limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: number
+        maximum: 100
+        exclusiveMinimum: 0
+        default: 10
+      description: Maximum number of records to return.
+    startTime:
+      name: startTime
+      in: query
+      schema:
+        type: string
+        default: '{{3-day before endTime}}'
+        example: '"1704067200000" | "2024-01-01T00:00:00Z" | "2024-01-01T00:00:00.000Z"'
+      description: The start time for record list. We accept **unix timestamp in milliseconds** and **ISO 8601 date-time in UTC**
+    endTime:
+      name: endTime
+      in: query
+      schema:
+        type: string
+        description: |
+          The inclusive end time for filtering records, based on the creation time.
+          **Accepted Formats:**
+          1.  Unix millisecond timestamp (e.g., `1706745599000`)
+          2.  ISO 8601 date-time in UTC (e.g., `2024-01-31T23:59:59Z` or `2024-01-31T23:59:59.999Z`)
+          **Query Logic:**
+          *   If `endTime` is **not** provided, the query spans from the `startTime` to the current time.
+        default: '{{now}}'
+        example: '"1706745599000" | "2024-01-31T23:59:59Z" | "2024-01-31T23:59:59.999Z"'
+      description: The end time for record list. We accept **unix timestamp in milliseconds** and **ISO 8601 date-time in UTC**
+    Authorization:
+      name: Authorization
+      in: header
+      required: true
+      schema:
+        type: string
+        default: '{{your_api_key}}'
+      description: Generated in the infloww client's API key management page.
+    x-oid:
+      name: x-oid
+      in: header
+      required: true
+      schema:
+        type: string
+        default: '{{your_oid}}'
+      description: View in the infloww client's API key management page.
+    linkType:
+      name: linkType
+      in: query
+      required: true
+      schema:
+        type: string
+        format: enum
+        enum:
+          - CAMPAIGN
+          - TRIAL
+          - TRACKING
+      description: We will validate the relationship between `linkType` and `platformCode`
+  responses:
+    '400':
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            type: object
+            x-examples:
+              Example 1:
+                errorMessage: limit must be less than or equal to 100
+            properties:
+              errorMessage:
+                type: string
+                description: Detail error message.
+          examples:
+            Example 1:
+              value:
+                errorMessage: limit must be less than or equal to 100
+      headers: {}
+    '401':
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            type: object
+            x-examples:
+              Example 1:
+                errorMessage: invalid api key
+            properties:
+              errorMessage:
+                type: string
+                description: |
+                  Detail error message.
+          examples:
+            Example 1:
+              value:
+                errorMessage: invalid api key
+    '403':
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            type: object
+            x-examples:
+              Example 1:
+                errorMessage: Your ip address is not allowed
+            properties:
+              errorMessage:
+                type: string
+                description: Detail error message.
+          examples:
+            Example 1:
+              value:
+                errorMessage: Your ip address is not allowed
+    '429':
+      description: Too Many Requests
+      content:
+        application/json:
+          schema:
+            type: object
+            x-examples:
+              Example 1:
+                errorMessage: Your ip address is not allowed
+            properties:
+              errorMessage:
+                type: string
+                description: Detail error message.
+          examples:
+            Example 1:
+              value:
+                errorMessage: Your ip address is not allowed
+    '500':
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            type: object
+            x-examples:
+              Example 1:
+                errorMessage: Internal Server Error
+            properties:
+              errorMessage:
+                type: string
+                description: Detail error message.
+          examples:
+            Example 1:
+              value:
+                errorMessage: Internal Server Error
+  securitySchemes: {}
+x-internal: false

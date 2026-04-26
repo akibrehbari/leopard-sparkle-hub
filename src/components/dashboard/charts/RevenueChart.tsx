@@ -1,10 +1,19 @@
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import type { DailyPoint } from "@/data/types";
-import { format, parseISO } from "date-fns";
-import { formatCurrency } from "@/data/selectors";
+"use client";
+
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import type { DailyRevenuePoint } from "@/lib/infloww/derive";
+import { formatUSD } from "@/lib/infloww/util";
 
 interface Props {
-  data: DailyPoint[];
+  data: DailyRevenuePoint[];
 }
 
 export function RevenueChart({ data }: Props) {
@@ -19,8 +28,7 @@ export function RevenueChart({ data }: Props) {
         </defs>
         <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
         <XAxis
-          dataKey="date"
-          tickFormatter={(v) => format(parseISO(v), "MMM d")}
+          dataKey="label"
           stroke="hsl(var(--muted-foreground))"
           fontSize={11}
           tickLine={false}
@@ -32,7 +40,7 @@ export function RevenueChart({ data }: Props) {
           fontSize={11}
           tickLine={false}
           axisLine={false}
-          tickFormatter={(v) => formatCurrency(Number(v))}
+          tickFormatter={(v) => formatUSD(Number(v))}
         />
         <Tooltip
           cursor={{ fill: "hsl(var(--muted) / 0.4)" }}
@@ -42,10 +50,9 @@ export function RevenueChart({ data }: Props) {
             borderRadius: 8,
             fontSize: 12,
           }}
-          labelFormatter={(v) => format(parseISO(String(v)), "MMM d, yyyy")}
-          formatter={(v: number) => [formatCurrency(v), "Revenue"]}
+          formatter={(v: number) => [formatUSD(v, { fractional: true }), "Net revenue"]}
         />
-        <Bar dataKey="revenue" fill="url(#grad-revenue)" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="net" fill="url(#grad-revenue)" radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );
