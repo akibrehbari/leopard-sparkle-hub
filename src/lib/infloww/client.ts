@@ -54,13 +54,15 @@ export class InflowwApiError extends Error {
 }
 
 function readEnv() {
-  const apiKey = process.env.INFLOW_API_KEY;
-  const oid = process.env.INFLOW_AGENCY_OID;
+  // Trim defensively: pasting into Vercel's env UI is a common source of
+  // stray whitespace / trailing newlines that produce silent 401s upstream.
+  const apiKey = process.env.INFLOW_API_KEY?.trim();
+  const oid = process.env.INFLOW_AGENCY_OID?.trim();
   if (!apiKey || !oid) {
     throw new InflowwApiError({
       status: 500,
       message:
-        "Infloww credentials are missing. Set INFLOW_API_KEY and INFLOW_AGENCY_OID in .env.",
+        "Infloww credentials are missing. Set INFLOW_API_KEY and INFLOW_AGENCY_OID in your environment.",
       body: null,
       requestId: null,
     });
