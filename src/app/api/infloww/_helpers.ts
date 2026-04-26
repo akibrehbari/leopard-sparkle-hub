@@ -16,6 +16,9 @@ export function errorResponse(err: unknown): NextResponse {
         error: err.message,
         upstreamStatus: err.status,
         requestId: err.requestId,
+        // Forward upstream body so callers can see Infloww's full reason.
+        // It contains no secrets — only their server-side error metadata.
+        upstreamBody: err.body,
       },
       { status: err.status >= 400 && err.status < 600 ? err.status : 502 },
     );
