@@ -9,6 +9,7 @@ import { ModelOverview } from "@/components/dashboard/ModelOverview";
 import { OnlyFansSection } from "@/components/dashboard/OnlyFansSection";
 import { RefundsSection } from "@/components/dashboard/RefundsSection";
 import { LinksSection } from "@/components/dashboard/LinksSection";
+import { AggregateView } from "@/components/dashboard/AggregateView";
 import { RevenueChart } from "@/components/dashboard/charts/RevenueChart";
 import { SubscriberChart } from "@/components/dashboard/charts/SubscriberChart";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,7 +35,6 @@ import {
   AlertTriangle,
   DollarSign,
   Receipt,
-  TrendingUp,
   UserCheck,
   Users,
 } from "lucide-react";
@@ -175,7 +175,19 @@ const Index = () => {
           </div>
 
           {isAggregate ? (
-            <AggregateNotice creatorCount={creators.length} />
+            creators.length === 0 ? (
+              <EmptyAggregate />
+            ) : (
+              <AggregateView
+                creators={creators}
+                startTime={rangeWindow.startTime}
+                endTime={rangeWindow.endTime}
+                rangeStart={rangeWindow.start}
+                rangeEnd={rangeWindow.end}
+                rangeLabel={RANGE_LABELS[range]}
+                onSelectCreator={setSelectedId}
+              />
+            )
           ) : (
             <>
               {/* KPI Cards */}
@@ -339,25 +351,12 @@ function EmptyChart({ message }: { message: string }) {
   );
 }
 
-function AggregateNotice({ creatorCount }: { creatorCount: number }) {
+function EmptyAggregate() {
   return (
     <div className="rounded-xl border border-dashed border-border bg-secondary/20 p-8 text-center">
-      <div className="mx-auto size-12 rounded-full bg-secondary/60 grid place-items-center mb-3">
-        <TrendingUp className="size-5 text-muted-foreground" />
-      </div>
-      <h3 className="text-base font-semibold mb-1">
-        Pick a creator to see their data
-      </h3>
+      <h3 className="text-base font-semibold mb-1">No creators connected</h3>
       <p className="text-sm text-muted-foreground max-w-md mx-auto">
-        {creatorCount === 0
-          ? "No creators are connected to your Infloww account yet."
-          : `Select one of your ${creatorCount} connected creator${
-              creatorCount === 1 ? "" : "s"
-            } from the sidebar to view revenue, subscribers, refunds, and marketing performance.`}
-      </p>
-      <p className="text-xs text-muted-foreground/70 mt-3">
-        Cross-creator aggregation is coming soon — the Infloww API is creator-scoped
-        for analytics endpoints.
+        Connect at least one creator in Infloww and they&apos;ll appear here automatically.
       </p>
     </div>
   );

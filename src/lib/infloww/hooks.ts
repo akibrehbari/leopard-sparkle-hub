@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import type {
   InflowwCreator,
   InflowwEnvelope,
@@ -145,6 +145,84 @@ export interface UseLinkFansOptions {
   linkId: string | null;
   linkType: InflowwLinkType;
   limit?: number;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Aggregate hooks (cross-creator)                                           */
+/* -------------------------------------------------------------------------- */
+
+export interface UseAllCreatorTransactionsOptions {
+  /** Pass the list of connected creator IDs from /v1/creators. */
+  creatorIds: string[];
+  startTime?: string | number;
+  endTime?: string | number;
+}
+
+export interface UseAllCreatorTransactionsResult {
+  /** Per-creator results, parallel to `creatorIds`. */
+  byCreator: { creatorId: string; transactions: InflowwTransaction[] }[];
+  /** Flattened list of all transactions across creators. */
+  transactions: InflowwTransaction[];
+  /** Number of per-creator queries currently in flight. */
+  loadingCount: number;
+  /** Number of per-creator queries that errored. */
+  errorCount: number;
+  /** Total queries dispatched. */
+  totalCount: number;
+  /** True while any creator's data is still loading. */
+  isLoading: boolean;
+  /** True when every creator either resolved or errored. */
+  isSettled: boolean;
+}
+
+/**
+ * Fan out one /v1/transactions request per creator and combine the results.
+ * Each creator gets its own React Query cache entry so partial failures don't
+ * tank the whole page, and refetching a single creator doesn't redownload
+ * everyone else.
+ */
+export function useAllCreatorTransactions(
+  opts: UseAllCreatorTransactionsOptions,
+): UseAllCreatorTransactionsResult {
+  const { creatorIds, startTime, endTime } = opts;
+
+  const queries = useQueries({
+    queries: creatorIds.map((id) => ({
+      queryKey: ["infloww", "transactions", { creatorId: id, startTime, endTime, all: true }],
+      queryFn: () =>
+        fetchJson<InflowwEnvelope<InflowwTransaction>>(
+          buildUrl("/api/infloww/transactions", {
+            creatorId: id,
+            startTime,
+            endTime,
+            all: "1",
+          }),
+        ),
+      staleTime: 60 * 1000,
+      enabled: Boolean(id),
+    })),
+  });
+
+  const byCreator = queries.map((q, i) => ({
+    creatorId: creatorIds[i],
+    transactions: q.data?.data?.list ?? [],
+  }));
+  const transactions = byCreator.flatMap((b) => b.transactions);
+  const loadingCount = queries.filter((q) => q.isLoading).length;
+  const errorCount = queries.filter((q) => q.isError).length;
+  const totalCount = queries.length;
+  const isLoading = loadingCount > 0;
+  const isSettled = totalCount > 0 && loadingCount === 0;
+
+  return {
+    byCreator,
+    transactions,
+    loadingCount,
+    errorCount,
+    totalCount,
+    isLoading,
+    isSettled,
+  };
 }
 
 export function useLinkFans(opts: UseLinkFansOptions) {

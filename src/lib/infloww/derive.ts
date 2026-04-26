@@ -383,6 +383,65 @@ export interface LinkSummary {
   totalEarningsGross: number;
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Cross-creator aggregation                                                 */
+/* -------------------------------------------------------------------------- */
+
+export interface CreatorLeaderboardRow {
+  creatorId: string;
+  /** Net revenue in window. */
+  net: number;
+  /** Gross revenue in window. */
+  gross: number;
+  /** Total transactions counted. */
+  count: number;
+  /** Active subscribers (any sub event in window). */
+  activeSubs: number;
+  /** New subscribers (first-time "Subscription" type). */
+  newSubs: number;
+  /** Most-earning channel by net revenue. */
+  topChannel: RevenueChannel | null;
+  /** Net for the top channel. */
+  topChannelNet: number;
+  /** 0..1 share of total agency net revenue. */
+  share: number;
+}
+
+/**
+ * Build a per-creator leaderboard for the agency view. Sorted by net revenue
+ * descending. Pass the per-creator results from useAllCreatorTransactions.
+ */
+export function creatorLeaderboard(
+  byCreator: { creatorId: string; transactions: InflowwTransaction[] }[],
+): CreatorLeaderboardRow[] {
+  const rows = byCreator.map(({ creatorId, transactions }) => {
+    const totals = totalRevenue(transactions);
+    const channels = revenueByChannel(transactions);
+    const topChannel = channels.reduce<{ channel: RevenueChannel; net: number } | null>(
+      (best, c) => (best === null || c.net > best.net ? { channel: c.channel, net: c.net } : best),
+      null,
+    );
+    return {
+      creatorId,
+      net: totals.net,
+      gross: totals.gross,
+      count: totals.count,
+      activeSubs: activeSubscribers(transactions),
+      newSubs: newSubscribers(transactions),
+      topChannel: topChannel?.channel ?? null,
+      topChannelNet: topChannel?.net ?? 0,
+      share: 0,
+    };
+  });
+
+  const totalNet = rows.reduce((sum, r) => sum + r.net, 0);
+  for (const row of rows) {
+    row.share = totalNet > 0 ? row.net / totalNet : 0;
+  }
+  rows.sort((a, b) => b.net - a.net);
+  return rows;
+}
+
 export function summarizeLinks(links: InflowwLink[]): LinkSummary {
   let totalSubs = 0;
   let totalEarningsNet = 0;
