@@ -20,6 +20,20 @@ import type {
 /*  Local fetch helper                                                        */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Error thrown by `fetchJson` when the proxy responds with a non-2xx. The
+ * `status` is plumbed through so the QueryClient retry policy can bail on
+ * 4xx (429, 401, etc.) instead of hammering Infloww.
+ */
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 async function fetchJson<T>(url: string): Promise<T> {
   const resp = await fetch(url, { credentials: "same-origin" });
   if (!resp.ok) {
@@ -30,8 +44,10 @@ async function fetchJson<T>(url: string): Promise<T> {
     } catch {
       // ignore
     }
-    throw new Error(
-      detail || `Request failed (${resp.status}) for ${new URL(url, "http://x").pathname}`,
+    const path = new URL(url, "http://x").pathname;
+    throw new ApiError(
+      detail || `Request failed (${resp.status}) for ${path}`,
+      resp.status,
     );
   }
   return (await resp.json()) as T;
@@ -57,7 +73,8 @@ export function useCreators(opts: { limit?: number } = {}) {
       fetchJson<InflowwEnvelope<InflowwCreator>>(
         buildUrl("/api/infloww/creators", { limit: opts.limit ?? 50 }),
       ),
-    staleTime: 5 * 60 * 1000,
+    // Connected creator list rarely changes — keep it cached for 15 min.
+    staleTime: 15 * 60 * 1000,
   });
 }
 
@@ -84,7 +101,7 @@ export function useTransactions(opts: UseTransactionsOptions) {
           all: opts.all ? "1" : undefined,
         }),
       ),
-    staleTime: 60 * 1000,
+    // Inherits 1-min staleTime + 30-min gcTime from QueryClient defaults.
   });
 }
 
@@ -110,7 +127,7 @@ export function useRefunds(opts: UseRefundsOptions) {
           all: opts.all ? "1" : undefined,
         }),
       ),
-    staleTime: 60 * 1000,
+    // Inherits 1-min staleTime + 30-min gcTime from QueryClient defaults.
   });
 }
 
