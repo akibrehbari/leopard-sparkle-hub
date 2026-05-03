@@ -4,8 +4,8 @@ import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
 
 interface Props {
-  title: string;
-  subtitle?: string;
+  title: ReactNode;
+  subtitle?: ReactNode;
   action?: ReactNode;
   children: ReactNode;
   className?: string;

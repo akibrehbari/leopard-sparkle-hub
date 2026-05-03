@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Sidebar } from "@/components/dashboard/Sidebar";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { AppShell } from "@/components/AppShell";
 import { Topbar } from "@/components/dashboard/Topbar";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { ChartCard } from "@/components/dashboard/ChartCard";
@@ -9,12 +10,14 @@ import { ModelOverview } from "@/components/dashboard/ModelOverview";
 import { OnlyFansSection } from "@/components/dashboard/OnlyFansSection";
 import { RefundsSection } from "@/components/dashboard/RefundsSection";
 import { LinksSection } from "@/components/dashboard/LinksSection";
+import { PlatformSection } from "@/components/dashboard/PlatformSection";
 import { RevenueChart } from "@/components/dashboard/charts/RevenueChart";
 import { SubscriberChart } from "@/components/dashboard/charts/SubscriberChart";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 
-import { useCreators, useTransactions } from "@/lib/infloww/infloww.hooks";
+import { useTransactions } from "@/lib/infloww/infloww.hooks";
+import { useInfluencers } from "@/lib/influencers/influencers.hooks";
 import {
   activeSubscribers as deriveActiveSubscribers,
   dailyRevenue,
@@ -37,20 +40,44 @@ import {
   TrendingUp,
   UserCheck,
   Users,
+  PlugZap,
 } from "lucide-react";
 
 const Index = () => {
-  const [selectedId, setSelectedId] = useState<string>("all");
+  return (
+    <AppShell>
+      <Suspense fallback={null}>
+        <DashboardContent />
+      </Suspense>
+    </AppShell>
+  );
+};
+
+function DashboardContent() {
+  const router = useRouter();
+  const search = useSearchParams();
+  const selectedId = search.get("id") ?? "all";
+
+  const setSelectedId = (id: string) => {
+    const params = new URLSearchParams(search.toString());
+    if (id === "all") params.delete("id");
+    else params.set("id", id);
+    const qs = params.toString();
+    router.push(qs ? `/?${qs}` : "/", { scroll: false });
+  };
+
   const [range, setRange] = useState<DashboardRange>("30d");
   const { toast } = useToast();
 
-  const creatorsQ = useCreators({ limit: 100 });
-  const creators = creatorsQ.data?.data?.list ?? [];
+  const influencersQ = useInfluencers();
+  const influencers = influencersQ.data ?? [];
 
   const isAggregate = selectedId === "all";
-  const selectedCreator = isAggregate
+  const selectedInfluencer = isAggregate
     ? null
-    : creators.find((c) => c.id === selectedId) ?? null;
+    : influencers.find((i) => i._id === selectedId) ?? null;
+  const inflowwCreatorId = selectedInfluencer?.inflowwCreatorId ?? null;
+  const hasInfloww = Boolean(inflowwCreatorId);
 
   // Resolve range -> absolute window once per render. Memoized so the same
   // Date instances feed into both the API query (stable cache key) and the
@@ -62,7 +89,7 @@ const Index = () => {
   }, [range]);
 
   const txQ = useTransactions({
-    creatorId: isAggregate ? null : selectedId,
+    creatorId: hasInfloww ? inflowwCreatorId : null,
     startTime: rangeWindow.startTime,
     endTime: rangeWindow.endTime,
     all: true,
@@ -87,16 +114,15 @@ const Index = () => {
     return { totals, channels, daily, flow, activeSubs, newSubs };
   }, [transactions, rangeWindow.start, rangeWindow.end]);
 
-  // Surface fetch errors as toasts (one-shot per change).
   useEffect(() => {
-    if (creatorsQ.isError) {
+    if (influencersQ.isError) {
       toast({
-        title: "Failed to load creators",
-        description: (creatorsQ.error as Error)?.message,
+        title: "Failed to load influencers",
+        description: (influencersQ.error as Error)?.message,
         variant: "destructive",
       });
     }
-  }, [creatorsQ.isError, creatorsQ.error, toast]);
+  }, [influencersQ.isError, influencersQ.error, toast]);
 
   useEffect(() => {
     if (txQ.isError) {
@@ -109,74 +135,81 @@ const Index = () => {
   }, [txQ.isError, txQ.error, toast]);
 
   const subtitle = isAggregate
-    ? `${RANGE_LABELS[range]} · aggregated view${
-        creatorsQ.isLoading ? "" : ` across ${creators.length} creators`
+    ? `${RANGE_LABELS[range]} · ${
+        influencersQ.isLoading ? "loading…" : `${influencers.length} influencers in your roster`
       }`
-    : selectedCreator
-      ? `${RANGE_LABELS[range]} · @${selectedCreator.userName ?? selectedCreator.id}`
+    : selectedInfluencer
+      ? `${RANGE_LABELS[range]} · ${
+          selectedInfluencer.inflowwUserName
+            ? `@${selectedInfluencer.inflowwUserName}`
+            : "Manual influencer"
+        }`
       : RANGE_LABELS[range];
 
   const title = isAggregate
     ? "All Models Overview"
-    : selectedCreator?.nickName ||
-      selectedCreator?.name ||
-      selectedCreator?.userName ||
-      "Loading…";
+    : selectedInfluencer?.name || "Loading…";
 
   return (
-    <div className="min-h-screen flex bg-background text-foreground">
-      <Sidebar selectedId={selectedId} onSelect={setSelectedId} />
+    <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8 animate-fade-in">
+      {/* Mobile influencer picker */}
+      <div className="lg:hidden mb-4 flex items-center gap-2 overflow-x-auto scrollbar-thin pb-2">
+        <button
+          onClick={() => setSelectedId("all")}
+          className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border ${
+            selectedId === "all"
+              ? "bg-primary text-primary-foreground border-primary"
+              : "bg-secondary/50 text-muted-foreground border-border"
+          }`}
+        >
+          All Models
+        </button>
+        {influencers.map((inf) => (
+          <button
+            key={inf._id}
+            onClick={() => setSelectedId(inf._id)}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border ${
+              selectedId === inf._id
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-secondary/50 text-muted-foreground border-border"
+            }`}
+          >
+            {inf.name}
+          </button>
+        ))}
+      </div>
 
-      <main className="flex-1 min-w-0">
-        <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8 animate-fade-in">
-          {/* Mobile creator picker */}
-          <div className="lg:hidden mb-4 flex items-center gap-2 overflow-x-auto scrollbar-thin pb-2">
-            <button
-              onClick={() => setSelectedId("all")}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border ${
-                selectedId === "all"
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-secondary/50 text-muted-foreground border-border"
-              }`}
-            >
-              All Models
-            </button>
-            {creators.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setSelectedId(c.id)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border ${
-                  selectedId === c.id
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-secondary/50 text-muted-foreground border-border"
-                }`}
-              >
-                {c.nickName || c.name || c.userName || c.id}
-              </button>
-            ))}
-          </div>
+      <Topbar
+        title={title}
+        subtitle={subtitle}
+        range={range}
+        onRangeChange={setRange}
+      />
 
-          <Topbar
-            title={title}
-            subtitle={subtitle}
-            range={range}
-            onRangeChange={setRange}
-          />
+      <div className="mb-6">
+        <ModelOverview
+          influencer={selectedInfluencer}
+          isAggregate={isAggregate}
+          totalCreators={influencers.length}
+          isLoading={
+            !isAggregate &&
+            (influencersQ.isLoading ||
+              (!selectedInfluencer && !influencersQ.isError))
+          }
+        />
+      </div>
 
-          <div className="mb-6">
-            <ModelOverview
-              creator={selectedCreator}
-              isAggregate={isAggregate}
-              totalCreators={creators.length}
-              isLoading={
-                !isAggregate && (creatorsQ.isLoading || (!selectedCreator && !creatorsQ.isError))
-              }
+      {isAggregate ? (
+        <AggregateNotice creatorCount={influencers.length} />
+      ) : (
+        <>
+          {!hasInfloww && (
+            <NoInflowwBanner
+              influencerName={selectedInfluencer?.name ?? ""}
             />
-          </div>
+          )}
 
-          {isAggregate ? (
-            <AggregateNotice creatorCount={creators.length} />
-          ) : (
+          {hasInfloww && (
             <>
               {/* KPI Cards */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -283,7 +316,7 @@ const Index = () => {
                   Refunds
                 </h2>
                 <RefundsSection
-                  creatorId={selectedId}
+                  creatorId={inflowwCreatorId!}
                   startTime={rangeWindow.startTime}
                   endTime={rangeWindow.endTime}
                 />
@@ -295,7 +328,7 @@ const Index = () => {
                   Marketing Performance
                 </h2>
                 <LinksSection
-                  creatorId={selectedId}
+                  creatorId={inflowwCreatorId!}
                   startTime={rangeWindow.startTime}
                   endTime={rangeWindow.endTime}
                 />
@@ -303,14 +336,33 @@ const Index = () => {
             </>
           )}
 
-          <footer className="text-center text-xs text-muted-foreground pt-4 pb-2">
-            eLeopards Clients Dashboard · Data from Infloww · Internal use only
-          </footer>
-        </div>
-      </main>
+          {/* Other platforms (manual weekly entry) — shown for every influencer */}
+          {selectedInfluencer && (
+            <section className="mb-6">
+              <h2 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wider">
+                Other Platforms
+              </h2>
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <PlatformSection
+                  influencer={selectedInfluencer}
+                  platform="reddit"
+                />
+                <PlatformSection
+                  influencer={selectedInfluencer}
+                  platform="instagram"
+                />
+              </div>
+            </section>
+          )}
+        </>
+      )}
+
+      <footer className="text-center text-xs text-muted-foreground pt-4 pb-2">
+        eLeopards Clients Dashboard · Data from Infloww · Internal use only
+      </footer>
     </div>
   );
-};
+}
 
 /* -------------------------------------------------------------------------- */
 
@@ -346,19 +398,39 @@ function AggregateNotice({ creatorCount }: { creatorCount: number }) {
         <TrendingUp className="size-5 text-muted-foreground" />
       </div>
       <h3 className="text-base font-semibold mb-1">
-        Pick a creator to see their data
+        Pick an influencer to see their data
       </h3>
       <p className="text-sm text-muted-foreground max-w-md mx-auto">
         {creatorCount === 0
-          ? "No creators are connected to your Infloww account yet."
-          : `Select one of your ${creatorCount} connected creator${
+          ? "No influencers in your roster yet. Open the Influencers page and click Sync Infloww accounts, or add one manually."
+          : `Select any of your ${creatorCount} influencer${
               creatorCount === 1 ? "" : "s"
-            } from the sidebar to view revenue, subscribers, refunds, and marketing performance.`}
+            } from the sidebar to view their OnlyFans (Infloww) analytics and Reddit / Instagram tracking.`}
       </p>
-      <p className="text-xs text-muted-foreground/70 mt-3">
-        Cross-creator aggregation is coming soon — the Infloww API is creator-scoped
-        for analytics endpoints.
-      </p>
+    </div>
+  );
+}
+
+function NoInflowwBanner({ influencerName }: { influencerName: string }) {
+  return (
+    <div className="rounded-xl border border-dashed border-border bg-secondary/20 p-5 mb-6 flex items-start gap-3">
+      <div className="size-9 rounded-lg bg-secondary/60 grid place-items-center shrink-0">
+        <PlugZap className="size-5 text-muted-foreground" />
+      </div>
+      <div className="text-sm">
+        <div className="font-medium text-foreground mb-0.5">
+          {influencerName ? `${influencerName} doesn’t have an Infloww account` : "No Infloww account linked"}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Showing only the manual platform tracking sections below. To enable
+          OnlyFans analytics (revenue, subscribers, refunds, links), this
+          influencer needs to be connected in Infloww first, then run{" "}
+          <a href="/influencers" className="text-primary hover:underline">
+            Sync Infloww accounts
+          </a>
+          .
+        </p>
+      </div>
     </div>
   );
 }

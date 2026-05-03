@@ -24,7 +24,7 @@ import type {
   InflowwRefund,
   InflowwTransaction,
 } from "./types";
-import api from "./api";
+import api from "@/lib/api";
 
 /* -------------------------------------------------------------------------- */
 /*  Param types                                                               */
