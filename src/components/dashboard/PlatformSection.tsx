@@ -25,7 +25,8 @@ import { ChartCard } from "@/components/dashboard/ChartCard";
 import { useEntries } from "@/lib/entries/entries.hooks";
 import { usePlatforms } from "@/lib/platforms/platforms.hooks";
 import { EntryFormModal } from "@/components/entries/EntryFormModal";
-import type { PlatformKey } from "@/lib/platforms/registry";
+import type { PlatformDefinition, PlatformKey } from "@/lib/platforms/registry";
+import type { WeeklyEntry } from "@/lib/entries/types";
 import type { Influencer } from "@/lib/influencers/types";
 import { currentWeekKey, lastNWeeks, weekShortLabel } from "@/lib/utils/week";
 import { formatNumber } from "@/lib/infloww/util";
@@ -33,20 +34,46 @@ import { formatNumber } from "@/lib/infloww/util";
 interface Props {
   influencer: Influencer;
   platform: PlatformKey;
+  /**
+   * Pre-fetched weekly entries (used by the public /share page so we don't
+   * re-fetch in the browser). When provided, the hook is bypassed.
+   */
+  prefetchedEntries?: WeeklyEntry[];
+  /** Pre-fetched platform definition (parallels prefetchedEntries). */
+  prefetchedPlatform?: PlatformDefinition;
+  /**
+   * Read-only mode: hides the "Log this week" / "Edit this week" buttons
+   * and turns the per-week dots into non-interactive markers. Used on
+   * /share/[id].
+   */
+  readOnly?: boolean;
 }
 
 const HISTORY_WEEKS = 12;
 
-export function PlatformSection({ influencer, platform }: Props) {
-  const { data: platforms } = usePlatforms();
-  const platformDef = platforms?.[platform];
+export function PlatformSection({
+  influencer,
+  platform,
+  prefetchedEntries,
+  prefetchedPlatform,
+  readOnly,
+}: Props) {
+  const usePrefetched = prefetchedEntries !== undefined;
+
+  const platformsQ = usePlatforms();
+  const platformDef =
+    prefetchedPlatform ?? platformsQ.data?.[platform];
 
   const weekKeys = useMemo(() => lastNWeeks(HISTORY_WEEKS), []);
   const entriesQ = useEntries({
-    influencerId: influencer._id,
+    influencerId: usePrefetched ? null : influencer._id,
     platform,
     weekKeys,
   });
+  const entries: WeeklyEntry[] = usePrefetched
+    ? prefetchedEntries ?? []
+    : entriesQ.data ?? [];
+  const entriesLoading = !usePrefetched && entriesQ.isLoading;
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalWeek, setModalWeek] = useState<string>(currentWeekKey());
@@ -57,12 +84,12 @@ export function PlatformSection({ influencer, platform }: Props) {
   const entriesByWeek = useMemo(() => {
     const map = new Map<string, number | null>();
     for (const wk of weekKeys) map.set(wk, null);
-    for (const e of entriesQ.data ?? []) {
+    for (const e of entries) {
       const v = headlineField ? e.data?.[headlineField.key] : undefined;
       if (typeof v === "number") map.set(e.weekKey, v);
     }
     return map;
-  }, [entriesQ.data, weekKeys, headlineField]);
+  }, [entries, weekKeys, headlineField]);
 
   const chartData = useMemo(
     () =>
@@ -110,23 +137,25 @@ export function PlatformSection({ influencer, platform }: Props) {
         }
         subtitle={`${headlineField?.label ?? "Headline metric"} · last ${HISTORY_WEEKS} weeks`}
         action={
-          <Button
-            size="sm"
-            variant={currentEntered ? "outline" : "default"}
-            onClick={() => openForm(currentWk)}
-          >
-            {currentEntered ? (
-              <>
-                <Pencil className="size-3.5" />
-                Edit this week
-              </>
-            ) : (
-              <>
-                <Plus className="size-3.5" />
-                Log this week
-              </>
-            )}
-          </Button>
+          readOnly ? null : (
+            <Button
+              size="sm"
+              variant={currentEntered ? "outline" : "default"}
+              onClick={() => openForm(currentWk)}
+            >
+              {currentEntered ? (
+                <>
+                  <Pencil className="size-3.5" />
+                  Edit this week
+                </>
+              ) : (
+                <>
+                  <Plus className="size-3.5" />
+                  Log this week
+                </>
+              )}
+            </Button>
+          )
         }
       >
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
@@ -149,11 +178,13 @@ export function PlatformSection({ influencer, platform }: Props) {
           />
         </div>
 
-        {entriesQ.isLoading ? (
+        {entriesLoading ? (
           <Skeleton className="h-[180px] w-full" />
         ) : chartData.every((p) => p.value === null) ? (
           <div className="h-[180px] grid place-items-center text-xs text-muted-foreground border border-dashed border-border rounded-md">
-            No data yet — click &ldquo;Log this week&rdquo; to start tracking.
+            {readOnly
+              ? "No data logged yet."
+              : "No data yet — click \u201cLog this week\u201d to start tracking."}
           </div>
         ) : (
           <div className="h-[180px]">
@@ -194,34 +225,49 @@ export function PlatformSection({ influencer, platform }: Props) {
           {weekKeys.map((wk) => {
             const filled = entriesByWeek.get(wk) !== null;
             const isCurrent = wk === currentWk;
-            return (
+            const cls = [
+              "size-5 rounded-full border text-[9px] grid place-items-center transition-colors",
+              filled
+                ? "bg-success/80 border-success text-success-foreground"
+                : "bg-transparent border-border text-muted-foreground",
+              !readOnly && (filled ? "hover:bg-success" : "hover:border-primary"),
+              isCurrent ? "ring-2 ring-offset-1 ring-offset-background ring-primary" : "",
+            ]
+              .filter(Boolean)
+              .join(" ");
+            const label = wk.split("W")[1];
+            return readOnly ? (
+              <span
+                key={wk}
+                title={`${wk}${filled ? "" : " \u00b7 not entered"}`}
+                className={cls}
+              >
+                {label}
+              </span>
+            ) : (
               <button
                 key={wk}
                 onClick={() => openForm(wk)}
-                title={`${wk}${filled ? "" : " · not entered yet"}`}
-                className={[
-                  "size-5 rounded-full border text-[9px] grid place-items-center transition-colors",
-                  filled
-                    ? "bg-success/80 border-success text-success-foreground hover:bg-success"
-                    : "bg-transparent border-border text-muted-foreground hover:border-primary",
-                  isCurrent ? "ring-2 ring-offset-1 ring-offset-background ring-primary" : "",
-                ].join(" ")}
+                title={`${wk}${filled ? "" : " \u00b7 not entered yet"}`}
+                className={cls}
               >
-                {wk.split("W")[1]}
+                {label}
               </button>
             );
           })}
         </div>
       </ChartCard>
 
-      <EntryFormModal
-        open={modalOpen}
-        onOpenChange={setModalOpen}
-        influencerId={influencer._id}
-        influencerName={influencer.name}
-        platform={platform}
-        weekKey={modalWeek}
-      />
+      {!readOnly && (
+        <EntryFormModal
+          open={modalOpen}
+          onOpenChange={setModalOpen}
+          influencerId={influencer._id}
+          influencerName={influencer.name}
+          platform={platform}
+          weekKey={modalWeek}
+        />
+      )}
     </>
   );
 }

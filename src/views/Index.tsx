@@ -184,6 +184,29 @@ function DashboardContent() {
         subtitle={subtitle}
         range={range}
         onRangeChange={setRange}
+        onExportPdf={() => window.print()}
+        onShare={
+          selectedInfluencer
+            ? () => {
+                const url = `${window.location.origin}/share/${selectedInfluencer._id}?range=${range}`;
+                navigator.clipboard
+                  .writeText(url)
+                  .then(() =>
+                    toast({
+                      title: "Share link copied",
+                      description: `${selectedInfluencer.name} · ${RANGE_LABELS[range]} (read-only, no login required)`,
+                    }),
+                  )
+                  .catch(() =>
+                    toast({
+                      title: "Could not copy link",
+                      description: url,
+                      variant: "destructive",
+                    }),
+                  );
+              }
+            : undefined
+        }
       />
 
       <div className="mb-6">
@@ -336,22 +359,31 @@ function DashboardContent() {
             </>
           )}
 
-          {/* Other platforms (manual weekly entry) — shown for every influencer */}
+          {/* Reddit — manual weekly entry, shown for every influencer */}
           {selectedInfluencer && (
             <section className="mb-6">
-              <h2 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wider">
-                Other Platforms
+              <h2 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wider flex items-center gap-2">
+                <span className="size-2 rounded-full bg-orange-500" />
+                Reddit
               </h2>
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                <PlatformSection
-                  influencer={selectedInfluencer}
-                  platform="reddit"
-                />
-                <PlatformSection
-                  influencer={selectedInfluencer}
-                  platform="instagram"
-                />
-              </div>
+              <PlatformSection
+                influencer={selectedInfluencer}
+                platform="reddit"
+              />
+            </section>
+          )}
+
+          {/* Instagram — manual weekly entry */}
+          {selectedInfluencer && (
+            <section className="mb-6">
+              <h2 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wider flex items-center gap-2">
+                <span className="size-2 rounded-full bg-pink-500" />
+                Instagram
+              </h2>
+              <PlatformSection
+                influencer={selectedInfluencer}
+                platform="instagram"
+              />
             </section>
           )}
         </>

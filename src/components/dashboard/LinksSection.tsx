@@ -27,6 +27,13 @@ interface Props {
   endTime: string | number;
   /** When true, this is the aggregate "All Models" view; we don't fetch. */
   disabled?: boolean;
+  /**
+   * Pre-fetched links keyed by link type (TRIAL/CAMPAIGN/TRACKING). When
+   * provided, the hook is bypassed and the tabs render directly against this
+   * map — used by the public /share page where the server has already done
+   * the fetching.
+   */
+  prefetched?: Partial<Record<InflowwLinkType, InflowwLink[]>>;
 }
 
 const LINK_TABS: { id: InflowwLinkType; label: string; icon: React.ReactNode }[] = [
@@ -35,17 +42,30 @@ const LINK_TABS: { id: InflowwLinkType; label: string; icon: React.ReactNode }[]
   { id: "TRACKING", label: "Tracking", icon: <Link2 className="size-3.5" /> },
 ];
 
-export function LinksSection({ creatorId, startTime, endTime, disabled }: Props) {
+export function LinksSection({
+  creatorId,
+  startTime,
+  endTime,
+  disabled,
+  prefetched,
+}: Props) {
   const [linkType, setLinkType] = useState<InflowwLinkType>("TRIAL");
-  const { data, isLoading, isError, error } = useLinks({
-    creatorId: disabled ? null : creatorId,
+  const usePrefetched = prefetched !== undefined;
+
+  const query = useLinks({
+    creatorId: usePrefetched || disabled ? null : creatorId,
     linkType,
     startTime,
     endTime,
     limit: 50,
   });
 
-  const links: InflowwLink[] = data?.data?.list ?? [];
+  const links: InflowwLink[] = usePrefetched
+    ? prefetched?.[linkType] ?? []
+    : query.data?.data?.list ?? [];
+  const isLoading = !usePrefetched && query.isLoading;
+  const isError = !usePrefetched && query.isError;
+  const error = !usePrefetched ? query.error : undefined;
   const summary = summarizeLinks(links);
 
   return (

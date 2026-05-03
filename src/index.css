@@ -110,3 +110,62 @@ All colors MUST be HSL.
   .scrollbar-thin::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 3px; }
   .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Print styles                                                              */
+/*                                                                            */
+/*  Triggered by Export → Save as PDF. Goal: keep the dashboard readable on   */
+/*  paper. We hide the chrome (sidebar, mobile picker, range buttons,         */
+/*  dropdown), force a single-column layout for the wide grids, and let       */
+/*  cards break across pages cleanly. The dark theme prints fine, but the    */
+/*  background gradient is dropped so ink isn't wasted.                       */
+/* -------------------------------------------------------------------------- */
+
+@media print {
+  @page {
+    size: A4;
+    margin: 16mm 12mm;
+  }
+
+  html,
+  body {
+    background: white !important;
+    background-image: none !important;
+  }
+
+  /* Anything explicitly marked .no-print disappears in the export. */
+  .no-print {
+    display: none !important;
+  }
+
+  /* The sidebar is the obvious one to drop. */
+  aside {
+    display: none !important;
+  }
+
+  /* Let the content go full-width once the sidebar is gone. */
+  main {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Don't slice cards in half across pages where avoidable. */
+  .card-surface,
+  section,
+  .recharts-wrapper {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Charts: keep recharts SVGs at their rendered size and inline. */
+  .recharts-responsive-container {
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  /* Drop expensive shadows/gradients for print. */
+  .card-surface {
+    box-shadow: none !important;
+  }
+}
+

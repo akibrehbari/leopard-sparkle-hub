@@ -19,6 +19,11 @@ interface Props {
   endTime: string | number;
   /** When true, this is the aggregate "All Models" view; we don't fetch. */
   disabled?: boolean;
+  /**
+   * Pre-fetched refunds (e.g. from the public /share page server fetch).
+   * When provided, the hook is bypassed entirely and we render directly.
+   */
+  prefetched?: InflowwRefund[] | null;
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -35,15 +40,28 @@ const TYPE_LABEL: Record<string, string> = {
   subscribes: "Subscription",
 };
 
-export function RefundsSection({ creatorId, startTime, endTime, disabled }: Props) {
-  const { data, isLoading, isError, error } = useRefunds({
-    creatorId: disabled ? null : creatorId,
+export function RefundsSection({
+  creatorId,
+  startTime,
+  endTime,
+  disabled,
+  prefetched,
+}: Props) {
+  const usePrefetched = prefetched !== undefined;
+
+  const query = useRefunds({
+    creatorId: usePrefetched || disabled ? null : creatorId,
     startTime,
     endTime,
     all: true,
   });
 
-  const refunds: InflowwRefund[] = data?.data?.list ?? [];
+  const refunds: InflowwRefund[] = usePrefetched
+    ? prefetched ?? []
+    : query.data?.data?.list ?? [];
+  const isLoading = !usePrefetched && query.isLoading;
+  const isError = !usePrefetched && query.isError;
+  const error = !usePrefetched ? query.error : undefined;
   const summary = summarizeRefunds(refunds);
 
   return (

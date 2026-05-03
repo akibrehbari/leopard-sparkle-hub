@@ -14,11 +14,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth/session";
 
 const PUBLIC_PATHS = ["/login"];
-const PUBLIC_API_PREFIXES = ["/api/auth/"];
+/**
+ * Path prefixes that bypass auth.
+ *
+ * `/share/` (page) and `/api/share/` (data) are intentionally public — anyone
+ * with the unguessable influencer ID in the URL can view a read-only snapshot
+ * of that influencer's dashboard. The MongoDB ObjectId provides ~96 bits of
+ * entropy, which is treated as a bearer token here.
+ */
+const PUBLIC_PREFIXES = ["/share/", "/api/share/", "/api/auth/"];
 
 function isPublic(pathname: string): boolean {
   if (PUBLIC_PATHS.includes(pathname)) return true;
-  return PUBLIC_API_PREFIXES.some((p) => pathname.startsWith(p));
+  return PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
 }
 
 export async function middleware(request: NextRequest) {

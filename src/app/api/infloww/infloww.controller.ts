@@ -402,6 +402,62 @@ class InflowwController {
     }
   }
 
+  /* ==================================================================== */
+  /*  Server-only composers                                                */
+  /*                                                                        */
+  /*  Used by other server-side controllers (e.g. shareController) that     */
+  /*  need raw typed envelopes without going through HTTP. Same pagination  */
+  /*  and error semantics as the HTTP handlers, just without the wrapping. */
+  /* ==================================================================== */
+
+  async fetchAllTransactions(args: {
+    creatorId: string;
+    startTime?: string | number;
+    endTime?: string | number;
+  }): Promise<InflowwTransaction[]> {
+    return this.paginate((cursor) =>
+      this.listTransactions({
+        creatorId: args.creatorId,
+        startTime: args.startTime,
+        endTime: args.endTime,
+        limit: 100,
+        cursor,
+      }),
+    );
+  }
+
+  async fetchAllRefunds(args: {
+    creatorId: string;
+    startTime?: string | number;
+    endTime?: string | number;
+  }): Promise<InflowwRefund[]> {
+    return this.paginate((cursor) =>
+      this.listRefunds({
+        creatorId: args.creatorId,
+        startTime: args.startTime,
+        endTime: args.endTime,
+        limit: 100,
+        cursor,
+      }),
+    );
+  }
+
+  async fetchLinks(args: {
+    creatorId: string;
+    linkType: InflowwLinkType;
+    startTime?: string | number;
+    endTime?: string | number;
+  }): Promise<InflowwLink[]> {
+    const env = await this.listLinks({
+      creatorId: args.creatorId,
+      linkType: args.linkType,
+      startTime: args.startTime,
+      endTime: args.endTime,
+      limit: 50,
+    });
+    return env.data?.list ?? [];
+  }
+
   async handleGetLinkFans(request: NextRequest): Promise<NextResponse> {
     const sp = new URL(request.url).searchParams;
     try {
