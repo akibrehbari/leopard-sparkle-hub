@@ -1,7 +1,7 @@
 "use client";
 
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-import type { ChannelBreakdownPoint, RevenueChannel } from "@/lib/infloww/derive";
+import type { ChannelBreakdownPoint, RevenueChannel } from "@/lib/utils/derive";
 import { formatUSD } from "@/lib/infloww/util";
 
 interface Props {

@@ -22,13 +22,13 @@ import {
   revenueByChannel,
   subscriberFlow,
   totalRevenue,
-} from "@/lib/infloww/derive";
+} from "@/lib/utils/derive";
 import {
   rangeToDates,
   rangeToQueryParams,
   RANGE_LABELS,
   type DashboardRange,
-} from "@/lib/infloww/range";
+} from "@/lib/utils/range";
 import { formatUSD, formatNumber } from "@/lib/infloww/util";
 import {
   AlertTriangle,

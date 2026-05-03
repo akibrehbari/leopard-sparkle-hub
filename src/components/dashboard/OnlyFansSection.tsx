@@ -7,7 +7,7 @@ import type {
   ChannelBreakdownPoint,
   RevenueTotals,
   SubscriberFlowPoint,
-} from "@/lib/infloww/derive";
+} from "@/lib/utils/derive";
 import { formatUSD, formatNumber } from "@/lib/infloww/util";
 
 interface Props {

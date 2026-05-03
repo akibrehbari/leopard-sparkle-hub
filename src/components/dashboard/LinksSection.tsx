@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useLinks } from "@/lib/infloww/hooks";
-import { summarizeLinks } from "@/lib/infloww/derive";
+import { summarizeLinks } from "@/lib/utils/derive";
 import {
   formatUSD,
   formatNumber,

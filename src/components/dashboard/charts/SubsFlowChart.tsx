@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { SubscriberFlowPoint } from "@/lib/infloww/derive";
+import type { SubscriberFlowPoint } from "@/lib/utils/derive";
 
 interface Props {
   data: SubscriberFlowPoint[];

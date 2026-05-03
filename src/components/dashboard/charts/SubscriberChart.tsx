@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { SubscriberFlowPoint } from "@/lib/infloww/derive";
+import type { SubscriberFlowPoint } from "@/lib/utils/derive";
 import { formatNumber } from "@/lib/infloww/util";
 
 interface Props {

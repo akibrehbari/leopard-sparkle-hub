@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { DASHBOARD_RANGES, type DashboardRange } from "@/lib/infloww/range";
+import { DASHBOARD_RANGES, type DashboardRange } from "@/lib/utils/range";
 import { Download, Search } from "lucide-react";
 
 interface Props {

@@ -10,8 +10,8 @@ import type {
   InflowwRefund,
   InflowwTransaction,
   InflowwTransactionType,
-} from "./types";
-import { dayKey, inflowwAmount, parseInflowwTime, shortDateLabel } from "./util";
+} from "@/lib/infloww/types";
+import { dayKey, inflowwAmount, parseInflowwTime, shortDateLabel } from "@/lib/infloww/util";
 
 /* -------------------------------------------------------------------------- */
 /*  Channel grouping                                                          */

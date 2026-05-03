@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { DailyRevenuePoint } from "@/lib/infloww/derive";
+import type { DailyRevenuePoint } from "@/lib/utils/derive";
 import { formatUSD } from "@/lib/infloww/util";
 
 interface Props {
