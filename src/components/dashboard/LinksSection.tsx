@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useLinks } from "@/lib/infloww/hooks";
+import { useLinks } from "@/lib/infloww/infloww.hooks";
 import { summarizeLinks } from "@/lib/utils/derive";
 import {
   formatUSD,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRefunds } from "@/lib/infloww/hooks";
+import { useRefunds } from "@/lib/infloww/infloww.hooks";
 import { summarizeRefunds } from "@/lib/utils/derive";
 import {
   formatUSD,

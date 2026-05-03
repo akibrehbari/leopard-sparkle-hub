@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils";
 import { Layers, AlertCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCreators } from "@/lib/infloww/hooks";
+import { useCreators } from "@/lib/infloww/infloww.hooks";
 import type { InflowwCreator } from "@/lib/infloww/types";
 
 interface Props {

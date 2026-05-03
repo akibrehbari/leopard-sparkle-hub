@@ -14,7 +14,7 @@ import { SubscriberChart } from "@/components/dashboard/charts/SubscriberChart";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 
-import { useCreators, useTransactions } from "@/lib/infloww/hooks";
+import { useCreators, useTransactions } from "@/lib/infloww/infloww.hooks";
 import {
   activeSubscribers as deriveActiveSubscribers,
   dailyRevenue,
