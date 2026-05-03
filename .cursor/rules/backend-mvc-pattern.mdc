@@ -1,0 +1,67 @@
+---
+description: Backend MVC — thin routes → controller class → model
+globs: src/app/api/**/*.ts
+alwaysApply: false
+---
+
+# Backend: MVC in route handlers
+
+```
+src/app/api/<domain>/
+  ├── <endpoint>/route.ts           ← thin route (R)
+  ├── <domain>.controller.ts        ← business logic + upstream calls (C)
+  └── <domain>.model.ts             ← database access, if needed (M)
+```
+
+## File naming
+
+All domain files follow the `<domain>.<layer>.ts` pattern:
+`infloww.controller.ts`, `infloww.model.ts`.
+
+## Responsibilities
+
+1. **`route.ts`** — one-liner that delegates to the controller. Exports
+   `runtime` and `dynamic` config. Contains zero business logic.
+
+2. **`<domain>.controller.ts`** — a **class** exporting a singleton. Owns:
+   - Upstream HTTP calls (auth headers, retry, backoff)
+   - Request param parsing and validation
+   - Error → NextResponse mapping
+   - Pagination helpers
+   - Uses `import "server-only"` to prevent accidental client-side imports.
+
+3. **`<domain>.model.ts`** — database communication. Only create when
+   you actually have a database layer. Not needed for pure proxy APIs.
+
+## Location
+
+All backend files live under `src/app/api/<domain>/`. Each endpoint gets its
+own subfolder with a `route.ts`, and the shared controller sits at the
+`<domain>/` level:
+
+```
+src/app/api/infloww/
+  ├── infloww.controller.ts       ← singleton class
+  ├── creators/route.ts            ← delegates to controller
+  ├── transactions/route.ts
+  ├── refunds/route.ts
+  ├── links/route.ts
+  └── linkfans/route.ts
+```
+
+## Example
+
+```typescript
+// infloww.controller.ts
+class InflowwController {
+  async handleGetCreators(req: NextRequest): Promise<NextResponse> {
+    // parse params → call upstream → return NextResponse.json()
+  }
+}
+export const inflowwController = new InflowwController();
+
+// creators/route.ts
+export async function GET(request: NextRequest) {
+  return inflowwController.handleGetCreators(request);
+}
+```

@@ -1,0 +1,45 @@
+/**
+ * Auth gate middleware.
+ *
+ * Runs in the Edge runtime, so it can only use Edge-safe APIs (jose, no
+ * mongoose). It checks the session cookie on every request and either:
+ *   - Lets the request through (valid session, or path is on the bypass list).
+ *   - Redirects pages to /login.
+ *   - Returns 401 JSON for /api/* routes.
+ *
+ * The matcher excludes Next.js internals + static assets so we don't waste
+ * cycles verifying JWTs for image requests.
+ */
+import { NextRequest, NextResponse } from "next/server";
+import { SESSION_COOKIE, verifySession } from "@/lib/auth/session";
+
+const PUBLIC_PATHS = ["/login"];
+const PUBLIC_API_PREFIXES = ["/api/auth/"];
+
+function isPublic(pathname: string): boolean {
+  if (PUBLIC_PATHS.includes(pathname)) return true;
+  return PUBLIC_API_PREFIXES.some((p) => pathname.startsWith(p));
+}
+
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  if (isPublic(pathname)) return NextResponse.next();
+
+  const token = request.cookies.get(SESSION_COOKIE)?.value;
+  const session = await verifySession(token);
+  if (session) return NextResponse.next();
+
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const loginUrl = new URL("/login", request.url);
+  loginUrl.searchParams.set("next", pathname);
+  return NextResponse.redirect(loginUrl);
+}
+
+export const config = {
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|woff2?|ttf|css|js|map)$).*)",
+  ],
+};
