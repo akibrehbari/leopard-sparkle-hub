@@ -1,5 +1,5 @@
 /**
- * Auth gate middleware.
+ * Auth gate proxy.
  *
  * Runs in the Edge runtime, so it can only use Edge-safe APIs (jose, no
  * mongoose). It checks the session cookie on every request and either:
@@ -9,6 +9,9 @@
  *
  * The matcher excludes Next.js internals + static assets so we don't waste
  * cycles verifying JWTs for image requests.
+ *
+ * Note: this file uses the `proxy` file convention introduced in Next.js 16.
+ * It replaces the deprecated `middleware` convention; behavior is unchanged.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth/session";
@@ -29,7 +32,7 @@ function isPublic(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   if (isPublic(pathname)) return NextResponse.next();
 

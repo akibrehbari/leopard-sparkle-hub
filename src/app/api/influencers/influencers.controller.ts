@@ -1,9 +1,9 @@
 /**
  * Influencers controller.
  *
- * Owns all CRUD on the influencers collection plus the Infloww sync. Sync
- * upserts one document per Infloww creator (matched by inflowwCreatorId);
- * existing influencers keep their handles/edits intact.
+ * Owns CRUD on the influencers collection. All influencers are created
+ * manually (the Infloww sync was removed when the API integration was
+ * deleted); per-platform handles are pure strings the operator types in.
  */
 import "server-only";
 
@@ -11,32 +11,43 @@ import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { connectMongo } from "@/lib/db/mongo";
 import { InfluencerModel, type InfluencerDoc } from "./influencers.model";
+import { PLATFORM_KEYS } from "@/lib/platforms/registry";
 import type {
   CreateInfluencerBody,
   Influencer,
-  SyncResult,
+  InfluencerHandles,
   UpdateInfluencerBody,
 } from "@/lib/influencers/types";
 
-/** The Infloww controller is in the sibling folder; we call it directly so we
- *  reuse its retry/auth logic instead of round-tripping HTTP to ourselves. */
-import type { InflowwCreator, InflowwEnvelope } from "@/lib/infloww/types";
-
 class InfluencersController {
   private toJson(doc: InfluencerDoc): Influencer {
+    const handles: InfluencerHandles = {};
+    for (const key of PLATFORM_KEYS) {
+      const v = doc.handles?.[key];
+      if (v) handles[key] = v;
+    }
     return {
       _id: doc._id.toString(),
       name: doc.name,
-      inflowwCreatorId: doc.inflowwCreatorId ?? undefined,
-      inflowwUserName: doc.inflowwUserName ?? undefined,
-      handles: {
-        reddit: doc.handles?.reddit ?? undefined,
-        instagram: doc.handles?.instagram ?? undefined,
-      },
-      isManual: doc.isManual,
+      handles,
       createdAt: doc.createdAt.toISOString(),
       updatedAt: doc.updatedAt.toISOString(),
     };
+  }
+
+  /**
+   * Sanitize an incoming `handles` map. Coerces empty / whitespace strings to
+   * undefined and drops any unknown platform keys.
+   */
+  private sanitizeHandles(input: InfluencerHandles | undefined): Record<string, string | null> {
+    const out: Record<string, string | null> = {};
+    if (!input) return out;
+    for (const key of PLATFORM_KEYS) {
+      const raw = input[key];
+      const trimmed = typeof raw === "string" ? raw.trim() : "";
+      out[key] = trimmed.length > 0 ? trimmed : null;
+    }
+    return out;
   }
 
   private errorResponse(err: unknown, fallbackStatus = 500): NextResponse {
@@ -47,8 +58,6 @@ class InfluencersController {
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 
-  /* ---------------------------------------------------------------------- */
-  /*  Routes                                                                */
   /* ---------------------------------------------------------------------- */
 
   async handleList(_request: NextRequest): Promise<NextResponse> {
@@ -75,26 +84,22 @@ class InfluencersController {
     }
   }
 
-  async handleCreateManual(request: NextRequest): Promise<NextResponse> {
+  async handleCreate(request: NextRequest): Promise<NextResponse> {
     try {
       const body = (await request.json()) as CreateInfluencerBody;
       const name = body?.name?.trim();
       if (!name) {
-        return NextResponse.json(
-          { error: "Name is required" },
-          { status: 400 },
-        );
+        return NextResponse.json({ error: "Name is required" }, { status: 400 });
       }
       await connectMongo();
       const doc = await InfluencerModel.create({
         name,
-        isManual: true,
-        handles: {
-          reddit: body.handles?.reddit?.trim() || null,
-          instagram: body.handles?.instagram?.trim() || null,
-        },
+        handles: this.sanitizeHandles(body.handles),
       });
-      return NextResponse.json({ data: this.toJson(doc.toObject() as InfluencerDoc) }, { status: 201 });
+      return NextResponse.json(
+        { data: this.toJson(doc.toObject() as InfluencerDoc) },
+        { status: 201 },
+      );
     } catch (err) {
       return this.errorResponse(err, 400);
     }
@@ -111,8 +116,10 @@ class InfluencersController {
         update.name = body.name.trim();
       }
       if (body.handles) {
-        update["handles.reddit"] = body.handles.reddit?.trim() || null;
-        update["handles.instagram"] = body.handles.instagram?.trim() || null;
+        const sanitized = this.sanitizeHandles(body.handles);
+        for (const key of PLATFORM_KEYS) {
+          update[`handles.${key}`] = sanitized[key] ?? null;
+        }
       }
       if (Object.keys(update).length === 0) {
         return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
@@ -141,82 +148,6 @@ class InfluencersController {
     } catch (err) {
       return this.errorResponse(err);
     }
-  }
-
-  /* ---------------------------------------------------------------------- */
-  /*  Sync from Infloww                                                     */
-  /* ---------------------------------------------------------------------- */
-
-  async handleSync(_request: NextRequest): Promise<NextResponse> {
-    try {
-      const creators = await this.fetchAllInflowwCreators();
-
-      await connectMongo();
-      let created = 0;
-      let updated = 0;
-
-      for (const c of creators) {
-        const existing = await InfluencerModel.findOne({ inflowwCreatorId: c.id });
-        if (existing) {
-          existing.name = c.nickName || c.name || existing.name;
-          existing.inflowwUserName = c.userName ?? existing.inflowwUserName ?? null;
-          await existing.save();
-          updated += 1;
-        } else {
-          await InfluencerModel.create({
-            name: c.nickName || c.name || c.userName || "Untitled",
-            inflowwCreatorId: c.id,
-            inflowwUserName: c.userName ?? null,
-            isManual: false,
-            handles: { reddit: null, instagram: null },
-          });
-          created += 1;
-        }
-      }
-
-      const result: SyncResult = {
-        fetched: creators.length,
-        created,
-        updated,
-        total: created + updated,
-      };
-      return NextResponse.json({ data: result });
-    } catch (err) {
-      return this.errorResponse(err);
-    }
-  }
-
-  /**
-   * Walk the Infloww creator pages directly using the same pattern the
-   * Infloww controller uses. We import dynamically to avoid creating an
-   * import cycle and to keep the sibling controller's retry/auth logic
-   * encapsulated.
-   */
-  private async fetchAllInflowwCreators(): Promise<InflowwCreator[]> {
-    const { inflowwController } = await import(
-      "@/app/api/infloww/infloww.controller"
-    );
-
-    const out: InflowwCreator[] = [];
-    let cursor: string | undefined;
-    for (let page = 0; page < 20; page += 1) {
-      const url = new URL(
-        cursor ? `http://x/?limit=100&cursor=${cursor}` : "http://x/?limit=100",
-      );
-      const fakeReq = { url: url.toString() } as NextRequest;
-      const resp = await inflowwController.handleGetCreators(fakeReq);
-      const json = (await resp.json()) as InflowwEnvelope<InflowwCreator>;
-      if (!resp.ok) {
-        throw new Error(
-          (json as unknown as { error?: string })?.error ?? "Infloww sync failed",
-        );
-      }
-      const list = json.data?.list ?? [];
-      out.push(...list);
-      if (!json.hasMore || !json.cursor) break;
-      cursor = String(json.cursor);
-    }
-    return out;
   }
 }
 

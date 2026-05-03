@@ -57,7 +57,7 @@ export default function TrackerPage() {
     const q = search.trim().toLowerCase();
     if (!q) return influencers;
     return influencers.filter((i) =>
-      [i.name, i.inflowwUserName, i.handles.reddit, i.handles.instagram]
+      [i.name, ...PLATFORM_KEYS.map((k) => i.handles[k])]
         .filter(Boolean)
         .some((s) => s!.toLowerCase().includes(q)),
     );
@@ -128,7 +128,7 @@ export default function TrackerPage() {
             <a href="/influencers" className="text-primary hover:underline">
               Influencers
             </a>{" "}
-            page and click <strong>Sync Infloww accounts</strong>.
+            page and click <strong>Add influencer</strong>.
           </div>
         ) : (
           <div className="card-surface rounded-xl overflow-hidden mt-4">
@@ -222,7 +222,7 @@ export default function TrackerPage() {
 
 function gridStyle(numWeeks: number): React.CSSProperties {
   return {
-    gridTemplateColumns: `minmax(220px, 1.5fr) repeat(${numWeeks}, minmax(110px, 1fr))`,
+    gridTemplateColumns: `minmax(220px, 1.5fr) repeat(${numWeeks}, minmax(140px, 1fr))`,
   };
 }
 
@@ -252,7 +252,12 @@ function TrackerRow({
             {influencer.name}
           </div>
           <div className="text-[10px] text-muted-foreground truncate">
-            {influencer.inflowwUserName ? `@${influencer.inflowwUserName}` : "Manual"}
+            {(() => {
+              const linked = PLATFORM_KEYS.filter((k) => influencer.handles[k]);
+              return linked.length > 0
+                ? linked.map((k) => k === "x" ? "X" : k.charAt(0).toUpperCase() + k.slice(1)).join(" · ")
+                : "No handles linked";
+            })()}
           </div>
         </div>
       </div>

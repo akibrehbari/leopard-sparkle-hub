@@ -25,10 +25,10 @@ export function useInfluencer(id: string | null) {
   });
 }
 
-export function useCreateManualInfluencer() {
+export function useCreateInfluencer() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: CreateInfluencerBody) => influencersService.createManual(body),
+    mutationFn: (body: CreateInfluencerBody) => influencersService.create(body),
     onSuccess: () => qc.invalidateQueries({ queryKey: LIST_KEY }),
   });
 }
@@ -49,14 +49,6 @@ export function useDeleteInfluencer() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => influencersService.remove(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: LIST_KEY }),
-  });
-}
-
-export function useSyncInfluencers() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => influencersService.sync(),
     onSuccess: () => qc.invalidateQueries({ queryKey: LIST_KEY }),
   });
 }

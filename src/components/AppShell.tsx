@@ -24,7 +24,7 @@ import {
   Layers,
   ListChecks,
   LogOut,
-  RefreshCw,
+  Plus,
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,6 +33,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useInfluencers } from "@/lib/influencers/influencers.hooks";
 import { useLogout, useSession } from "@/lib/auth/auth.hooks";
 import type { Influencer } from "@/lib/influencers/types";
+import { PLATFORMS, PLATFORM_KEYS } from "@/lib/platforms/registry";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -153,8 +154,8 @@ function SidebarBody() {
               <div>No influencers yet.</div>
               <Link href="/influencers">
                 <Button variant="outline" size="sm" className="w-full">
-                  <RefreshCw className="size-3" />
-                  Sync Infloww accounts
+                  <Plus className="size-3" />
+                  Add an influencer
                 </Button>
               </Link>
             </div>
@@ -281,12 +282,8 @@ function DashboardLink({
 }
 
 function InfluencerRow({ inf, active }: { inf: Influencer; active: boolean }) {
-  const display = inf.name || inf.inflowwUserName || "Untitled";
-  const subtitle = inf.inflowwUserName
-    ? `@${inf.inflowwUserName}`
-    : inf.isManual
-      ? "Manual"
-      : "";
+  const display = inf.name || "Untitled";
+  const handleCount = PLATFORM_KEYS.filter((k) => inf.handles[k]).length;
 
   return (
     <Link
@@ -305,9 +302,9 @@ function InfluencerRow({ inf, active }: { inf: Influencer; active: boolean }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="font-medium truncate">{display}</div>
-        {subtitle && (
+        {handleCount > 0 && (
           <div className="text-[11px] text-muted-foreground truncate">
-            {subtitle}
+            {handleCount} platform{handleCount === 1 ? "" : "s"} linked
           </div>
         )}
       </div>
@@ -317,46 +314,22 @@ function InfluencerRow({ inf, active }: { inf: Influencer; active: boolean }) {
 }
 
 function PlatformBadges({ inf }: { inf: Influencer }) {
-  const badges: { key: string; label: string; color: string; on: boolean }[] = [
-    {
-      key: "of",
-      label: "OF",
-      color: "bg-primary/20 text-primary",
-      on: Boolean(inf.inflowwCreatorId),
-    },
-    {
-      key: "r",
-      label: "R",
-      color: "bg-orange-500/20 text-orange-600 dark:text-orange-400",
-      on: Boolean(inf.handles.reddit),
-    },
-    {
-      key: "ig",
-      label: "IG",
-      color: "bg-pink-500/20 text-pink-600 dark:text-pink-400",
-      on: Boolean(inf.handles.instagram),
-    },
-  ];
   return (
     <div className="flex items-center gap-0.5 shrink-0">
-      {badges.map((b) =>
-        b.on ? (
+      {PLATFORM_KEYS.map((key) => {
+        if (!inf.handles[key]) return null;
+        const def = PLATFORMS[key];
+        return (
           <span
-            key={b.key}
-            title={
-              b.label === "OF"
-                ? "Has Infloww account"
-                : `Has ${b.label} handle`
-            }
-            className={cn(
-              "text-[8px] font-bold uppercase tracking-wider px-1 py-0.5 rounded leading-none",
-              b.color,
-            )}
+            key={key}
+            title={`Has ${def.label} handle`}
+            className="text-[8px] font-bold uppercase tracking-wider px-1 py-0.5 rounded leading-none border border-border"
+            style={{ background: `${def.color}20`, color: def.color }}
           >
-            {b.label}
+            {def.short}
           </span>
-        ) : null,
-      )}
+        );
+      })}
     </div>
   );
 }

@@ -20,22 +20,22 @@ import mongoose from "mongoose";
 import { connectMongo } from "@/lib/db/mongo";
 import { InfluencerModel, type InfluencerDoc } from "@/app/api/influencers/influencers.model";
 import { WeeklyEntryModel, type WeeklyEntryDoc } from "@/app/api/entries/entries.model";
-import { inflowwController } from "@/app/api/infloww/infloww.controller";
-import { PLATFORMS, type PlatformKey } from "@/lib/platforms/registry";
+import {
+  PLATFORMS,
+  PLATFORM_KEYS,
+  type PlatformKey,
+} from "@/lib/platforms/registry";
 import { lastNWeeks } from "@/lib/utils/week";
 import {
   DASHBOARD_RANGES,
   rangeToDates,
-  rangeToQueryParams,
   type DashboardRange,
 } from "@/lib/utils/range";
-import type { Influencer } from "@/lib/influencers/types";
+import type { Influencer, InfluencerHandles } from "@/lib/influencers/types";
 import type { WeeklyEntry } from "@/lib/entries/types";
-import type { InflowwLink, InflowwLinkType } from "@/lib/infloww/types";
 import type { SharePayload } from "@/lib/share/types";
 
 const HISTORY_WEEKS = 12;
-const LINK_TYPES: InflowwLinkType[] = ["TRIAL", "CAMPAIGN", "TRACKING"];
 
 class ShareController {
   /* ---------------------------------------------------------------------- */
@@ -56,50 +56,13 @@ class ShareController {
 
     const influencer = this.toInfluencerJson(doc);
     const window = rangeToDates(args.range);
-    const { startTime, endTime } = rangeToQueryParams(args.range);
     const weekKeys = lastNWeeks(HISTORY_WEEKS);
 
-    /* -- Manual entries: one query per platform (cheap, indexed). -------- */
-    const platformKeys = Object.keys(PLATFORMS) as PlatformKey[];
     const entriesByPlatform = await this.fetchEntries(
       args.influencerId,
-      platformKeys,
+      PLATFORM_KEYS,
       weekKeys,
     );
-
-    /* -- Infloww data: only when linked. Run all calls in parallel so
-     *    the page TTFB isn't gated on three sequential round-trips. ------ */
-    let infloww: SharePayload["infloww"] = null;
-    if (influencer.inflowwCreatorId) {
-      const creatorId = influencer.inflowwCreatorId;
-      const [transactions, refunds, ...linksByType] = await Promise.all([
-        inflowwController.fetchAllTransactions({
-          creatorId,
-          startTime,
-          endTime,
-        }),
-        inflowwController.fetchAllRefunds({
-          creatorId,
-          startTime,
-          endTime,
-        }),
-        ...LINK_TYPES.map((linkType) =>
-          inflowwController.fetchLinks({
-            creatorId,
-            linkType,
-            startTime,
-            endTime,
-          }),
-        ),
-      ]);
-
-      const links: Partial<Record<InflowwLinkType, InflowwLink[]>> = {};
-      LINK_TYPES.forEach((t, i) => {
-        links[t] = linksByType[i] ?? [];
-      });
-
-      infloww = { transactions, refunds, links };
-    }
 
     return {
       influencer,
@@ -108,7 +71,6 @@ class ShareController {
         startISO: window.start.toISOString(),
         endISO: window.end.toISOString(),
       },
-      infloww,
       entries: entriesByPlatform,
       platforms: PLATFORMS,
       generatedAt: new Date().toISOString(),
@@ -142,7 +104,7 @@ class ShareController {
   /* ---------------------------------------------------------------------- */
 
   private parseRange(raw: string | null): DashboardRange {
-    if (raw && (DASHBOARD_RANGES as string[]).includes(raw)) {
+    if (raw && (DASHBOARD_RANGES as readonly string[]).includes(raw)) {
       return raw as DashboardRange;
     }
     return "30d";
@@ -150,13 +112,13 @@ class ShareController {
 
   private async fetchEntries(
     influencerId: string,
-    platforms: PlatformKey[],
+    platforms: readonly PlatformKey[],
     weekKeys: string[],
   ): Promise<Partial<Record<PlatformKey, WeeklyEntry[]>>> {
     const _id = new mongoose.Types.ObjectId(influencerId);
     const docs = await WeeklyEntryModel.find({
       influencerId: _id,
-      platform: { $in: platforms },
+      platform: { $in: platforms as PlatformKey[] },
       weekKey: { $in: weekKeys },
     }).lean<WeeklyEntryDoc[]>();
 
@@ -171,16 +133,15 @@ class ShareController {
   }
 
   private toInfluencerJson(doc: InfluencerDoc): Influencer {
+    const handles: InfluencerHandles = {};
+    for (const key of PLATFORM_KEYS) {
+      const v = doc.handles?.[key];
+      if (v) handles[key] = v;
+    }
     return {
       _id: doc._id.toString(),
       name: doc.name,
-      inflowwCreatorId: doc.inflowwCreatorId ?? undefined,
-      inflowwUserName: doc.inflowwUserName ?? undefined,
-      handles: {
-        reddit: doc.handles?.reddit ?? undefined,
-        instagram: doc.handles?.instagram ?? undefined,
-      },
-      isManual: doc.isManual,
+      handles,
       createdAt: doc.createdAt.toISOString(),
       updatedAt: doc.updatedAt.toISOString(),
     };

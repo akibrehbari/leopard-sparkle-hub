@@ -7,9 +7,9 @@
  * (no HTTP self-call) and hands the resulting payload to the client renderer.
  * Middleware bypasses this path; the influencer ObjectId is the credential.
  *
- * Data is always live — every request re-queries Mongo + Infloww. Rolling
- * windows ("last 30 days") are anchored to the request time, not when the
- * link was originally generated.
+ * Data is always live — every request re-queries Mongo. Rolling windows
+ * ("last 30 days") are anchored to the request time, not when the link was
+ * originally generated.
  */
 import { notFound } from "next/navigation";
 
@@ -32,7 +32,7 @@ interface Props {
 }
 
 function parseRange(raw: string | undefined): DashboardRange {
-  if (raw && (DASHBOARD_RANGES as string[]).includes(raw)) {
+  if (raw && (DASHBOARD_RANGES as readonly string[]).includes(raw)) {
     return raw as DashboardRange;
   }
   return "30d";

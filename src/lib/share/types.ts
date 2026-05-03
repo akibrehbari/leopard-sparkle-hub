@@ -7,12 +7,6 @@
  * conditional branching.
  */
 
-import type {
-  InflowwLink,
-  InflowwLinkType,
-  InflowwRefund,
-  InflowwTransaction,
-} from "@/lib/infloww/types";
 import type { Influencer } from "@/lib/influencers/types";
 import type { WeeklyEntry } from "@/lib/entries/types";
 import type { PlatformDefinition, PlatformKey } from "@/lib/platforms/registry";
@@ -23,13 +17,7 @@ export interface SharePayload {
   range: DashboardRange;
   /** Inclusive ISO timestamps describing the range window for display. */
   window: { startISO: string; endISO: string };
-  /** Present only when the influencer has an inflowwCreatorId. */
-  infloww: {
-    transactions: InflowwTransaction[];
-    refunds: InflowwRefund[];
-    links: Partial<Record<InflowwLinkType, InflowwLink[]>>;
-  } | null;
-  /** Always present, one entry per platform. */
+  /** One pre-filtered list per platform key. Empty arrays when no data. */
   entries: Partial<Record<PlatformKey, WeeklyEntry[]>>;
   platforms: Record<PlatformKey, PlatformDefinition>;
   generatedAt: string;

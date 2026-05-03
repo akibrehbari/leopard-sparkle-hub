@@ -3,26 +3,25 @@
  * The `_id` is always serialized as a string in JSON responses.
  */
 
-export interface InfluencerHandles {
-  reddit?: string;
-  instagram?: string;
-}
+import type { PlatformKey } from "@/lib/platforms/registry";
+
+/**
+ * Per-platform handle (e.g. "u/carlitos" stored as "carlitos"). Empty/missing
+ * means the influencer doesn't have / hasn't connected an account on that
+ * platform; the dashboard still shows the platform's section so weekly data
+ * can be entered.
+ */
+export type InfluencerHandles = Partial<Record<PlatformKey, string>>;
 
 export interface Influencer {
   _id: string;
   name: string;
-  /** Present when this influencer was synced from Infloww. */
-  inflowwCreatorId?: string;
-  /** Cached so we can render the @handle without an Infloww round-trip. */
-  inflowwUserName?: string;
   handles: InfluencerHandles;
-  /** True for influencers created via the manual-add form (no Infloww account). */
-  isManual: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
-/** Body for POST /api/influencers (manual create). */
+/** Body for POST /api/influencers (create). */
 export interface CreateInfluencerBody {
   name: string;
   handles?: InfluencerHandles;
@@ -32,12 +31,4 @@ export interface CreateInfluencerBody {
 export interface UpdateInfluencerBody {
   name?: string;
   handles?: InfluencerHandles;
-}
-
-/** Result of POST /api/influencers/sync. */
-export interface SyncResult {
-  fetched: number;
-  created: number;
-  updated: number;
-  total: number;
 }

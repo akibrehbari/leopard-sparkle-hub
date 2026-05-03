@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { DASHBOARD_RANGES, type DashboardRange } from "@/lib/utils/range";
-import { Download, FileDown, Link2, Search } from "lucide-react";
+import { Download, FileDown, Link2, Loader2, Search } from "lucide-react";
 
 interface Props {
   title: string;
@@ -20,6 +20,8 @@ interface Props {
   /** Optional handlers for the Export dropdown. Items hide if their handler is missing. */
   onExportPdf?: () => void;
   onShare?: () => void;
+  /** When true, the Export trigger swaps to a spinner while the PDF is generating. */
+  exporting?: boolean;
 }
 
 const RANGE_LABELS: Record<DashboardRange, string> = {
@@ -35,6 +37,7 @@ export function Topbar({
   onRangeChange,
   onExportPdf,
   onShare,
+  exporting,
 }: Props) {
   const hasExportActions = Boolean(onExportPdf || onShare);
 
@@ -71,19 +74,28 @@ export function Topbar({
         {hasExportActions ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
-                <Download className="size-4" />
-                Export
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                disabled={exporting}
+              >
+                {exporting ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Download className="size-4" />
+                )}
+                {exporting ? "Exporting…" : "Export"}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               {onExportPdf && (
-                <DropdownMenuItem onSelect={() => onExportPdf()}>
+                <DropdownMenuItem
+                  onSelect={() => onExportPdf()}
+                  disabled={exporting}
+                >
                   <FileDown className="size-4" />
                   Export as PDF
-                  <span className="ml-auto text-[10px] text-muted-foreground">
-                    Print → Save as PDF
-                  </span>
                 </DropdownMenuItem>
               )}
               {onExportPdf && onShare && <DropdownMenuSeparator />}

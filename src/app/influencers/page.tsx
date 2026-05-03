@@ -1,21 +1,24 @@
 "use client";
 
+/**
+ * Influencer roster page (path: /influencers).
+ *
+ * Pure CRUD now that the Infloww sync is gone. The table renders one row per
+ * influencer with their handles for each tracked platform; click a row to
+ * edit. The Add dialog collects a name plus optional handles.
+ *
+ * Field set is driven by the platform registry — adding a new platform
+ * key automatically adds a new column + edit input here.
+ */
+
 import { useState } from "react";
-import {
-  Loader2,
-  Plus,
-  RefreshCw,
-  Trash2,
-  Pencil,
-  Save,
-  X,
-} from "lucide-react";
+import { Loader2, Plus, Trash2, Pencil, Save, X } from "lucide-react";
+
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -34,62 +37,73 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import {
-  useCreateManualInfluencer,
+  useCreateInfluencer,
   useDeleteInfluencer,
   useInfluencers,
-  useSyncInfluencers,
   useUpdateInfluencer,
 } from "@/lib/influencers/influencers.hooks";
-import type { Influencer } from "@/lib/influencers/types";
+import type { Influencer, InfluencerHandles } from "@/lib/influencers/types";
+import {
+  PLATFORMS,
+  PLATFORM_KEYS,
+  type PlatformKey,
+} from "@/lib/platforms/registry";
+
+const HANDLE_PREFIX: Record<PlatformKey, string> = {
+  reddit: "u/",
+  instagram: "@",
+  x: "@",
+  onlyfans: "@",
+};
+
+const HANDLE_PLACEHOLDER: Record<PlatformKey, string> = {
+  reddit: "username (no u/)",
+  instagram: "username (no @)",
+  x: "username (no @)",
+  onlyfans: "username (no @)",
+};
+
+function emptyHandles(): Record<PlatformKey, string> {
+  return PLATFORM_KEYS.reduce(
+    (acc, k) => {
+      acc[k] = "";
+      return acc;
+    },
+    {} as Record<PlatformKey, string>,
+  );
+}
+
+function toHandlesPayload(
+  draft: Record<PlatformKey, string>,
+): InfluencerHandles {
+  const out: InfluencerHandles = {};
+  for (const k of PLATFORM_KEYS) {
+    const v = draft[k]?.trim();
+    if (v) out[k] = v;
+  }
+  return out;
+}
 
 export default function InfluencersPage() {
   const { toast } = useToast();
   const { data: influencers, isLoading, isError, error } = useInfluencers();
 
-  const sync = useSyncInfluencers();
-  const create = useCreateManualInfluencer();
+  const create = useCreateInfluencer();
   const removeMut = useDeleteInfluencer();
 
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState("");
-  const [redditHandle, setRedditHandle] = useState("");
-  const [instaHandle, setInstaHandle] = useState("");
-
-  const handleSync = () => {
-    sync.mutate(undefined, {
-      onSuccess: (r) =>
-        toast({
-          title: "Infloww accounts synced",
-          description:
-            r.created === 0 && r.updated > 0
-              ? `${r.updated} existing influencer${r.updated === 1 ? "" : "s"} refreshed (no new accounts).`
-              : `${r.created} added, ${r.updated} refreshed (of ${r.fetched} Infloww creator${r.fetched === 1 ? "" : "s"}).`,
-        }),
-      onError: (e) =>
-        toast({
-          title: "Sync failed",
-          description: (e as Error).message,
-          variant: "destructive",
-        }),
-    });
-  };
+  const [handles, setHandles] = useState<Record<PlatformKey, string>>(emptyHandles());
 
   const handleCreate = () => {
     create.mutate(
-      {
-        name,
-        handles: {
-          reddit: redditHandle || undefined,
-          instagram: instaHandle || undefined,
-        },
-      },
+      { name, handles: toHandlesPayload(handles) },
       {
         onSuccess: () => {
           toast({ title: "Influencer added" });
           setCreateOpen(false);
           setName("");
-          setRedditHandle("");
-          setInstaHandle("");
+          setHandles(emptyHandles());
         },
         onError: (e) =>
           toast({
@@ -123,26 +137,14 @@ export default function InfluencersPage() {
           <div>
             <h1 className="text-xl font-semibold">Influencers</h1>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Auto-imported Infloww accounts plus any manually added influencers.
+              Your roster — one row per influencer, with handles for each
+              tracked platform.
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSync}
-              disabled={sync.isPending}
-            >
-              {sync.isPending ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <RefreshCw className="size-4" />
-              )}
-              Sync Infloww accounts
-            </Button>
             <Button size="sm" onClick={() => setCreateOpen(true)}>
               <Plus className="size-4" />
-              Add manual
+              Add influencer
             </Button>
           </div>
         </header>
@@ -162,8 +164,8 @@ export default function InfluencersPage() {
             <div className="p-12 text-center text-sm text-muted-foreground">
               <p>No influencers yet.</p>
               <p className="mt-1 text-xs">
-                Click <strong className="text-foreground">Sync Infloww accounts</strong>{" "}
-                to import your connected creators, or add one manually.
+                Click <strong className="text-foreground">Add influencer</strong>{" "}
+                above to create your first one.
               </p>
             </div>
           ) : (
@@ -171,9 +173,9 @@ export default function InfluencersPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead>Reddit</TableHead>
-                  <TableHead>Instagram</TableHead>
+                  {PLATFORM_KEYS.map((k) => (
+                    <TableHead key={k}>{PLATFORMS[k].label}</TableHead>
+                  ))}
                   <TableHead className="w-24" />
                 </TableRow>
               </TableHeader>
@@ -192,12 +194,12 @@ export default function InfluencersPage() {
       </div>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Add manual influencer</DialogTitle>
+            <DialogTitle>Add influencer</DialogTitle>
             <DialogDescription>
-              For influencers without an Infloww account. You can still track
-              their Reddit and Instagram progress here.
+              Name is required. Handles are optional — add them now or later
+              by editing the row.
             </DialogDescription>
           </DialogHeader>
 
@@ -212,24 +214,22 @@ export default function InfluencersPage() {
                 autoFocus
               />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="m-reddit">Reddit handle (optional)</Label>
-              <Input
-                id="m-reddit"
-                value={redditHandle}
-                onChange={(e) => setRedditHandle(e.target.value)}
-                placeholder="username (no u/)"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="m-insta">Instagram handle (optional)</Label>
-              <Input
-                id="m-insta"
-                value={instaHandle}
-                onChange={(e) => setInstaHandle(e.target.value)}
-                placeholder="username (no @)"
-              />
-            </div>
+            {PLATFORM_KEYS.map((k) => (
+              <div key={k} className="space-y-1.5">
+                <Label htmlFor={`m-${k}`}>
+                  {PLATFORMS[k].label} handle{" "}
+                  <span className="text-muted-foreground">(optional)</span>
+                </Label>
+                <Input
+                  id={`m-${k}`}
+                  value={handles[k]}
+                  onChange={(e) =>
+                    setHandles((prev) => ({ ...prev, [k]: e.target.value }))
+                  }
+                  placeholder={HANDLE_PLACEHOLDER[k]}
+                />
+              </div>
+            ))}
           </div>
 
           <DialogFooter>
@@ -262,12 +262,26 @@ function InfluencerRow({
   const update = useUpdateInfluencer();
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
-  const [reddit, setReddit] = useState(influencer.handles.reddit ?? "");
-  const [insta, setInsta] = useState(influencer.handles.instagram ?? "");
+  const [draft, setDraft] = useState<Record<PlatformKey, string>>(() =>
+    PLATFORM_KEYS.reduce(
+      (acc, k) => {
+        acc[k] = influencer.handles[k] ?? "";
+        return acc;
+      },
+      {} as Record<PlatformKey, string>,
+    ),
+  );
 
   const cancel = () => {
-    setReddit(influencer.handles.reddit ?? "");
-    setInsta(influencer.handles.instagram ?? "");
+    setDraft(
+      PLATFORM_KEYS.reduce(
+        (acc, k) => {
+          acc[k] = influencer.handles[k] ?? "";
+          return acc;
+        },
+        {} as Record<PlatformKey, string>,
+      ),
+    );
     setEditing(false);
   };
 
@@ -275,12 +289,7 @@ function InfluencerRow({
     update.mutate(
       {
         id: influencer._id,
-        body: {
-          handles: {
-            reddit: reddit || undefined,
-            instagram: insta || undefined,
-          },
-        },
+        body: { handles: toHandlesPayload(draft) },
       },
       {
         onSuccess: () => {
@@ -308,55 +317,29 @@ function InfluencerRow({
           </div>
           <div className="min-w-0">
             <div className="font-medium truncate">{influencer.name}</div>
-            {influencer.inflowwUserName && (
-              <div className="text-[11px] text-muted-foreground truncate">
-                @{influencer.inflowwUserName}
-              </div>
-            )}
           </div>
         </div>
       </TableCell>
-      <TableCell>
-        {influencer.isManual ? (
-          <Badge variant="outline" className="text-[10px]">
-            Manual
-          </Badge>
-        ) : (
-          <Badge variant="secondary" className="text-[10px]">
-            Infloww
-          </Badge>
-        )}
-      </TableCell>
-      <TableCell>
-        {editing ? (
-          <Input
-            value={reddit}
-            onChange={(e) => setReddit(e.target.value)}
-            placeholder="reddit handle"
-            className="h-8 text-xs"
-          />
-        ) : (
-          <span className="text-xs text-muted-foreground">
-            {influencer.handles.reddit ? `u/${influencer.handles.reddit}` : "—"}
-          </span>
-        )}
-      </TableCell>
-      <TableCell>
-        {editing ? (
-          <Input
-            value={insta}
-            onChange={(e) => setInsta(e.target.value)}
-            placeholder="instagram handle"
-            className="h-8 text-xs"
-          />
-        ) : (
-          <span className="text-xs text-muted-foreground">
-            {influencer.handles.instagram
-              ? `@${influencer.handles.instagram}`
-              : "—"}
-          </span>
-        )}
-      </TableCell>
+      {PLATFORM_KEYS.map((k) => (
+        <TableCell key={k}>
+          {editing ? (
+            <Input
+              value={draft[k]}
+              onChange={(e) =>
+                setDraft((prev) => ({ ...prev, [k]: e.target.value }))
+              }
+              placeholder={HANDLE_PLACEHOLDER[k]}
+              className="h-8 text-xs"
+            />
+          ) : (
+            <span className="text-xs text-muted-foreground">
+              {influencer.handles[k]
+                ? `${HANDLE_PREFIX[k]}${influencer.handles[k]}`
+                : "—"}
+            </span>
+          )}
+        </TableCell>
+      ))}
       <TableCell>
         <div className="flex items-center justify-end gap-1">
           {editing ? (

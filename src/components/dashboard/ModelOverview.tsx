@@ -2,9 +2,13 @@
 
 import type { Influencer } from "@/lib/influencers/types";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
-import { Layers, AtSign, Tag } from "lucide-react";
+import { Layers } from "lucide-react";
 import { pkt } from "@/lib/utils/dayjs";
+import {
+  PLATFORMS,
+  PLATFORM_KEYS,
+  type PlatformKey,
+} from "@/lib/platforms/registry";
 
 interface Props {
   influencer: Influencer | null;
@@ -13,6 +17,13 @@ interface Props {
   totalCreators?: number;
   isLoading?: boolean;
 }
+
+const HANDLE_PREFIX: Record<PlatformKey, string> = {
+  reddit: "u/",
+  instagram: "@",
+  x: "@",
+  onlyfans: "@",
+};
 
 export function ModelOverview({
   influencer,
@@ -45,12 +56,7 @@ export function ModelOverview({
             <h2 className="text-xl font-bold text-foreground truncate">
               All Models
             </h2>
-            <span
-              className={cn(
-                "text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full",
-                "bg-success/15 text-success ring-1 ring-success/30",
-              )}
-            >
+            <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-success/15 text-success ring-1 ring-success/30">
               Aggregated
             </span>
           </div>
@@ -71,8 +77,14 @@ export function ModelOverview({
 
   if (!influencer) return null;
 
-  const display = influencer.name || influencer.inflowwUserName || "Untitled";
-  const sourceLabel = influencer.isManual ? "Manual" : "Infloww";
+  const display = influencer.name || "Untitled";
+  const handlesByPlatform = PLATFORM_KEYS.flatMap<{
+    platform: PlatformKey;
+    handle: string;
+  }>((key) => {
+    const handle = influencer.handles[key];
+    return handle ? [{ platform: key, handle }] : [];
+  });
 
   return (
     <div className="card-surface rounded-xl p-5 flex items-center gap-5 relative overflow-hidden">
@@ -85,39 +97,25 @@ export function ModelOverview({
       <div className="flex-1 min-w-0 relative">
         <div className="flex items-center gap-2 flex-wrap">
           <h2 className="text-xl font-bold text-foreground truncate">{display}</h2>
-          <span
-            className={cn(
-              "inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full",
-              influencer.isManual
-                ? "bg-secondary/60 text-muted-foreground ring-1 ring-border"
-                : "bg-primary/15 text-primary ring-1 ring-primary/30",
-            )}
-          >
-            <Tag className="size-3" />
-            {sourceLabel}
-          </span>
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          {influencer.inflowwUserName && (
-            <span className="inline-flex items-center gap-1">
-              <AtSign className="size-3.5" />
-              <span className="text-foreground/80 font-medium">
-                {influencer.inflowwUserName}
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          {handlesByPlatform.length === 0 && (
+            <span className="text-muted-foreground/70 italic">
+              No handles set yet
+            </span>
+          )}
+          {handlesByPlatform.map(({ platform, handle }) => (
+            <span key={platform} className="inline-flex items-center gap-1">
+              <span
+                className="size-2 rounded-full"
+                style={{ background: PLATFORMS[platform].color }}
+              />
+              <span className="text-foreground/80">
+                {HANDLE_PREFIX[platform]}
+                {handle}
               </span>
             </span>
-          )}
-          {influencer.handles.reddit && (
-            <span className="inline-flex items-center gap-1">
-              <span className="size-2 rounded-full bg-orange-500" />
-              <span className="text-foreground/80">u/{influencer.handles.reddit}</span>
-            </span>
-          )}
-          {influencer.handles.instagram && (
-            <span className="inline-flex items-center gap-1">
-              <span className="size-2 rounded-full bg-pink-500" />
-              <span className="text-foreground/80">@{influencer.handles.instagram}</span>
-            </span>
-          )}
+          ))}
           <span className="text-muted-foreground/60">
             Added {pkt(influencer.createdAt).format("MMM D, YYYY")}
           </span>

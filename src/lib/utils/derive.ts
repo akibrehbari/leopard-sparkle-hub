@@ -1,405 +1,355 @@
 /**
- * Pure functions that turn raw Infloww transaction / link data into the shapes
- * the dashboard needs (KPIs, time series, channel breakdowns).
+ * Derivation helpers for the manually-tracked platforms.
  *
- * These are *pure*: no fetches, no side effects. Easy to unit test.
+ * Inputs are weekly entries (one document per influencer × platform × ISO
+ * week) as returned by the entries API. Outputs are pure JS arrays / objects
+ * suitable for direct rendering in recharts or stat tiles.
+ *
+ * Two storage conventions to keep in mind:
+ *   - count fields are stored as integers and represent absolute totals
+ *     "as of week N" when the field is `cumulative: true`. Renderers turn
+ *     those into weekly deltas via `deltaSeries`.
+ *   - currencyCents fields are integers in cents (per-week, never
+ *     cumulative). Renderers convert to dollars at display time.
  */
 
-import type {
-  InflowwLink,
-  InflowwRefund,
-  InflowwTransaction,
-  InflowwTransactionType,
-} from "@/lib/infloww/types";
-import { dayKey, inflowwAmount, parseInflowwTime, shortDateLabel } from "@/lib/infloww/util";
+import type { WeeklyEntry } from "@/lib/entries/types";
+import {
+  ACQUISITION_PLATFORM_KEYS,
+  type AcquisitionPlatformKey,
+  onlyFansFieldKey,
+} from "@/lib/platforms/registry";
+import { centsToUsd } from "@/lib/utils/format";
 
 /* -------------------------------------------------------------------------- */
-/*  Channel grouping                                                          */
+/*  Indexing helpers                                                          */
 /* -------------------------------------------------------------------------- */
 
-/**
- * Spec lists 7 transaction types. For dashboards we collapse the two
- * subscription variants into a single "Subscriptions" channel, since fans
- * don't care about the renewal-vs-new distinction in a revenue chart.
- */
-export type RevenueChannel =
-  | "Subscriptions"
-  | "Tips"
-  | "Messages"
-  | "Posts"
-  | "Streams"
-  | "Referrals"
-  | "Other";
+/** Build a `weekKey -> entry` index for O(1) lookup during series derivation. */
+export function indexEntriesByWeek(
+  entries: WeeklyEntry[],
+): Map<string, WeeklyEntry> {
+  const map = new Map<string, WeeklyEntry>();
+  for (const e of entries) map.set(e.weekKey, e);
+  return map;
+}
 
-/**
- * Map raw transaction types to dashboard channels. The spec lists
- * "Recurring Subscription" with a space, but the live API returns
- * "RecurringSubscription" without one — we accept both.
- */
-const CHANNEL_BY_TYPE: Record<string, RevenueChannel> = {
-  Subscription: "Subscriptions",
-  RecurringSubscription: "Subscriptions",
-  "Recurring Subscription": "Subscriptions",
-  Tips: "Tips",
-  Messages: "Messages",
-  Posts: "Posts",
-  Streams: "Streams",
-  Referrals: "Referrals",
-  Unknown: "Other",
-};
-
-export const REVENUE_CHANNELS: RevenueChannel[] = [
-  "Subscriptions",
-  "Tips",
-  "Messages",
-  "Posts",
-  "Streams",
-  "Referrals",
-  "Other",
-];
-
-export function channelOf(t: InflowwTransaction): RevenueChannel {
-  return CHANNEL_BY_TYPE[t.type] ?? "Other";
+/** Sort week keys ascending — they're zero-padded ISO strings, so a string
+ *  sort is sufficient (and avoids re-parsing). */
+export function sortedWeekKeys(weekKeys: readonly string[]): string[] {
+  return [...weekKeys].sort();
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Helpers                                                                   */
+/*  Cumulative-metric deltas                                                  */
 /* -------------------------------------------------------------------------- */
 
+export interface DeltaPoint {
+  weekKey: string;
+  /** Cumulative value for this week, or null if not entered. */
+  cumulative: number | null;
+  /** Δ vs the most recent prior entered week, or null when no prior exists. */
+  delta: number | null;
+}
+
 /**
- * Only count "settled" money. The spec lists statuses as:
- *   loading | done | undo | pending_return
- * "done" = settled, "undo" = reversed, "pending_return" = pending refund,
- * "loading" = still syncing. We treat "done" and "loading" as included
- * (loading rows still represent real money in the queue), and exclude
- * "undo" and "pending_return".
+ * Build a per-week series for a cumulative count field. For each requested
+ * week we report:
+ *   - cumulative: the entered value (or null if no entry that week)
+ *   - delta: current cumulative - most-recent-prior cumulative
+ *
+ * If the operator skips a week, `delta` falls back to the most recent prior
+ * non-null value rather than calling the gap a zero — that matches the
+ * intent of "growth since last reading".
  */
-function isCountable(t: InflowwTransaction): boolean {
-  return t.status === "done" || t.status === "loading";
+export function deltaSeries(
+  entries: WeeklyEntry[],
+  weekKeys: readonly string[],
+  fieldKey: string,
+): DeltaPoint[] {
+  const byWeek = indexEntriesByWeek(entries);
+  const ordered = sortedWeekKeys(weekKeys);
+  const out: DeltaPoint[] = [];
+  let lastSeen: number | null = null;
+
+  for (const wk of ordered) {
+    const entry = byWeek.get(wk);
+    const raw = entry?.data?.[fieldKey];
+    const cumulative = typeof raw === "number" ? raw : null;
+    const delta =
+      cumulative !== null && lastSeen !== null ? cumulative - lastSeen : null;
+    out.push({ weekKey: wk, cumulative, delta });
+    if (cumulative !== null) lastSeen = cumulative;
+  }
+
+  return out;
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Top-line KPIs                                                             */
+/*  Per-week currency series                                                  */
 /* -------------------------------------------------------------------------- */
 
-export interface RevenueTotals {
-  /** Sum of `amount` (gross, before OnlyFans fees), in USD. */
-  gross: number;
-  /** Sum of `fee`, in USD. */
-  fee: number;
-  /** Sum of `net` (what the creator actually receives), in USD. */
+export interface CurrencyPoint {
+  weekKey: string;
+  /** USD dollars (already converted from cents). null when no entry. */
+  usd: number | null;
+}
+
+/**
+ * Build a per-week USD series for a currencyCents field. Missing weeks
+ * surface as null so charts can choose to draw gaps or treat as zero.
+ */
+export function currencySeries(
+  entries: WeeklyEntry[],
+  weekKeys: readonly string[],
+  fieldKey: string,
+): CurrencyPoint[] {
+  const byWeek = indexEntriesByWeek(entries);
+  return sortedWeekKeys(weekKeys).map((wk) => {
+    const raw = byWeek.get(wk)?.data?.[fieldKey];
+    return {
+      weekKey: wk,
+      usd: typeof raw === "number" ? centsToUsd(raw) : null,
+    };
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/*  OnlyFans summary                                                          */
+/* -------------------------------------------------------------------------- */
+
+export interface OnlyFansWeekPoint {
+  weekKey: string;
+  /** Per-source revenue in USD. Always present (0 when missing). */
+  revenue: Record<AcquisitionPlatformKey, number>;
+  /** Per-source spend in USD. Always present (0 when missing). */
+  spend: Record<AcquisitionPlatformKey, number>;
+  /** Sum of per-source revenue. */
+  totalRevenue: number;
+  /** Sum of per-source spend. */
+  totalSpend: number;
   net: number;
-  /** Number of transactions counted. */
-  count: number;
+  /** revenue / spend; null when spend is 0 (avoid divide-by-zero). */
+  roas: number | null;
 }
 
-export function totalRevenue(transactions: InflowwTransaction[]): RevenueTotals {
-  const totals: RevenueTotals = { gross: 0, fee: 0, net: 0, count: 0 };
-  for (const t of transactions) {
-    if (!isCountable(t)) continue;
-    totals.gross += inflowwAmount(t.amount, "cents");
-    totals.fee += inflowwAmount(t.fee, "cents");
-    totals.net += inflowwAmount(t.net, "cents");
-    totals.count += 1;
-  }
-  return totals;
-}
-
-/**
- * Active subscribers = unique fanIds with any subscription transaction
- * (new or renewal) in the window.
- */
-export function activeSubscribers(transactions: InflowwTransaction[]): number {
-  const fans = new Set<string>();
-  for (const t of transactions) {
-    if (!isCountable(t)) continue;
-    if (isAnySubscription(t) && t.fanId) fans.add(t.fanId);
-  }
-  return fans.size;
-}
-
-/**
- * New subscribers = unique fanIds with a first-time "Subscription" event
- * (as opposed to "RecurringSubscription" / "Recurring Subscription" which
- * are renewals). Approximates new sign-ups in the window.
- */
-export function newSubscribers(transactions: InflowwTransaction[]): number {
-  const fans = new Set<string>();
-  for (const t of transactions) {
-    if (!isCountable(t)) continue;
-    if (t.type === "Subscription" && t.fanId) {
-      fans.add(t.fanId);
-    }
-  }
-  return fans.size;
-}
-
-function isRenewal(t: InflowwTransaction): boolean {
-  return (
-    t.type === "RecurringSubscription" ||
-    t.type === "Recurring Subscription"
-  );
-}
-
-function isAnySubscription(t: InflowwTransaction): boolean {
-  return t.type === "Subscription" || isRenewal(t);
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Time series                                                               */
-/* -------------------------------------------------------------------------- */
-
-export interface DailyRevenuePoint {
-  /** "YYYY-MM-DD" — stable map key. */
-  key: string;
-  /** Display label for chart axis ("Mar 14"). */
-  label: string;
-  /** Date object at local midnight. */
-  date: Date;
-  gross: number;
+export interface OnlyFansSourceSummary {
+  source: AcquisitionPlatformKey;
+  revenue: number;
+  spend: number;
   net: number;
-  /** Per-channel net revenue for the day. */
-  byChannel: Record<RevenueChannel, number>;
+  roas: number | null;
+  /** Per-week revenue series (USD) for sparkline rendering. */
+  weekly: { weekKey: string; revenue: number; spend: number }[];
+}
+
+export interface OnlyFansSummary {
+  weeks: OnlyFansWeekPoint[];
+  /** Range-wide totals across every week + every source. */
+  totals: {
+    revenue: number;
+    spend: number;
+    net: number;
+    roas: number | null;
+  };
+  /** One summary per acquisition platform. */
+  bySource: OnlyFansSourceSummary[];
 }
 
 /**
- * Bucket transactions by local day. Returns a sorted list (oldest first).
- * If `range` is provided, fills missing days with zero so the chart x-axis
- * is continuous.
+ * Compose the full OnlyFans dashboard payload from a flat list of
+ * onlyfans-platform entries spanning the given weeks.
  */
-export function dailyRevenue(
-  transactions: InflowwTransaction[],
-  range?: { start: Date; end: Date },
-): DailyRevenuePoint[] {
-  const map = new Map<string, DailyRevenuePoint>();
+export function onlyFansSummary(
+  entries: WeeklyEntry[],
+  weekKeys: readonly string[],
+): OnlyFansSummary {
+  const byWeek = indexEntriesByWeek(entries);
+  const ordered = sortedWeekKeys(weekKeys);
 
-  const ensure = (d: Date): DailyRevenuePoint => {
-    const key = dayKey(d);
-    let point = map.get(key);
-    if (!point) {
-      point = {
-        key,
-        label: shortDateLabel(d),
-        date: new Date(d.getFullYear(), d.getMonth(), d.getDate()),
-        gross: 0,
-        net: 0,
-        byChannel: emptyChannelTotals(),
-      };
-      map.set(key, point);
-    }
-    return point;
+  const sourceTotals: Record<AcquisitionPlatformKey, { revenue: number; spend: number }> = {
+    reddit: { revenue: 0, spend: 0 },
+    instagram: { revenue: 0, spend: 0 },
+    x: { revenue: 0, spend: 0 },
   };
 
-  for (const t of transactions) {
-    if (!isCountable(t)) continue;
-    const d = parseInflowwTime(t.createdTime);
-    if (!d) continue;
-    const point = ensure(d);
-    const gross = inflowwAmount(t.amount, "cents");
-    const net = inflowwAmount(t.net, "cents");
-    point.gross += gross;
-    point.net += net;
-    point.byChannel[channelOf(t)] += net;
-  }
+  const sourceWeekly: Record<AcquisitionPlatformKey, { weekKey: string; revenue: number; spend: number }[]> = {
+    reddit: [],
+    instagram: [],
+    x: [],
+  };
 
-  if (range) {
-    const cursor = new Date(range.start);
-    cursor.setHours(0, 0, 0, 0);
-    const stop = new Date(range.end);
-    stop.setHours(0, 0, 0, 0);
-    while (cursor <= stop) {
-      ensure(cursor);
-      cursor.setDate(cursor.getDate() + 1);
+  const weeks: OnlyFansWeekPoint[] = ordered.map((wk) => {
+    const entry = byWeek.get(wk);
+    const data = entry?.data ?? {};
+
+    const revenue: Record<AcquisitionPlatformKey, number> = {
+      reddit: 0,
+      instagram: 0,
+      x: 0,
+    };
+    const spend: Record<AcquisitionPlatformKey, number> = {
+      reddit: 0,
+      instagram: 0,
+      x: 0,
+    };
+
+    for (const src of ACQUISITION_PLATFORM_KEYS) {
+      const r = data[onlyFansFieldKey("revenue", src)];
+      const s = data[onlyFansFieldKey("spend", src)];
+      revenue[src] = typeof r === "number" ? centsToUsd(r) : 0;
+      spend[src] = typeof s === "number" ? centsToUsd(s) : 0;
+      sourceTotals[src].revenue += revenue[src];
+      sourceTotals[src].spend += spend[src];
+      sourceWeekly[src].push({
+        weekKey: wk,
+        revenue: revenue[src],
+        spend: spend[src],
+      });
     }
-  }
 
-  return Array.from(map.values()).sort(
-    (a, b) => a.date.getTime() - b.date.getTime(),
-  );
-}
+    const totalRevenue =
+      revenue.reddit + revenue.instagram + revenue.x;
+    const totalSpend = spend.reddit + spend.instagram + spend.x;
+    const net = totalRevenue - totalSpend;
+    const roas = totalSpend > 0 ? totalRevenue / totalSpend : null;
 
-function emptyChannelTotals(): Record<RevenueChannel, number> {
+    return {
+      weekKey: wk,
+      revenue,
+      spend,
+      totalRevenue,
+      totalSpend,
+      net,
+      roas,
+    };
+  });
+
+  const totalRevenue =
+    sourceTotals.reddit.revenue +
+    sourceTotals.instagram.revenue +
+    sourceTotals.x.revenue;
+  const totalSpend =
+    sourceTotals.reddit.spend +
+    sourceTotals.instagram.spend +
+    sourceTotals.x.spend;
+
   return {
-    Subscriptions: 0,
-    Tips: 0,
-    Messages: 0,
-    Posts: 0,
-    Streams: 0,
-    Referrals: 0,
-    Other: 0,
+    weeks,
+    totals: {
+      revenue: totalRevenue,
+      spend: totalSpend,
+      net: totalRevenue - totalSpend,
+      roas: totalSpend > 0 ? totalRevenue / totalSpend : null,
+    },
+    bySource: ACQUISITION_PLATFORM_KEYS.map((src) => {
+      const r = sourceTotals[src].revenue;
+      const s = sourceTotals[src].spend;
+      return {
+        source: src,
+        revenue: r,
+        spend: s,
+        net: r - s,
+        roas: s > 0 ? r / s : null,
+        weekly: sourceWeekly[src],
+      };
+    }),
   };
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Channel breakdown                                                         */
+/*  Cross-platform aggregate (dashboard "All Models" overview)                */
 /* -------------------------------------------------------------------------- */
 
-export interface ChannelBreakdownPoint {
-  channel: RevenueChannel;
+export interface InfluencerEntries {
+  influencerId: string;
+  /** All entries for this influencer in the selected window, any platform. */
+  entries: WeeklyEntry[];
+}
+
+export interface CrossPlatformAggregate {
+  influencerCount: number;
+  /** Total OnlyFans revenue across all influencers + all weeks (USD). */
+  totalRevenue: number;
+  /** Total OnlyFans spend across all influencers + all weeks (USD). */
+  totalSpend: number;
   net: number;
-  gross: number;
-  count: number;
-  /** 0..1 share of total net. */
-  share: number;
-}
-
-export function revenueByChannel(
-  transactions: InflowwTransaction[],
-): ChannelBreakdownPoint[] {
-  const buckets: Record<
-    RevenueChannel,
-    { net: number; gross: number; count: number }
-  > = {
-    Subscriptions: { net: 0, gross: 0, count: 0 },
-    Tips: { net: 0, gross: 0, count: 0 },
-    Messages: { net: 0, gross: 0, count: 0 },
-    Posts: { net: 0, gross: 0, count: 0 },
-    Streams: { net: 0, gross: 0, count: 0 },
-    Referrals: { net: 0, gross: 0, count: 0 },
-    Other: { net: 0, gross: 0, count: 0 },
-  };
-
-  for (const t of transactions) {
-    if (!isCountable(t)) continue;
-    const ch = channelOf(t);
-    buckets[ch].net += inflowwAmount(t.net, "cents");
-    buckets[ch].gross += inflowwAmount(t.amount, "cents");
-    buckets[ch].count += 1;
-  }
-
-  const totalNet = REVENUE_CHANNELS.reduce(
-    (sum, ch) => sum + buckets[ch].net,
-    0,
-  );
-
-  return REVENUE_CHANNELS.map((channel) => ({
-    channel,
-    net: buckets[channel].net,
-    gross: buckets[channel].gross,
-    count: buckets[channel].count,
-    share: totalNet > 0 ? buckets[channel].net / totalNet : 0,
-  })).filter((p) => p.count > 0 || p.net > 0);
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Subscriber growth                                                         */
-/* -------------------------------------------------------------------------- */
-
-export interface SubscriberFlowPoint {
-  key: string;
-  label: string;
-  date: Date;
-  /** New (first-time) subscriptions on this day. */
-  newSubs: number;
-  /** Recurring renewals on this day. */
-  renewals: number;
+  roas: number | null;
+  /** Sum of latest cumulative followers across all influencers, per platform. */
+  totalFollowers: Record<AcquisitionPlatformKey, number>;
+  /** Total weekly follower growth (sum of deltas across all influencers). */
+  weeklyFollowerGrowth: Record<AcquisitionPlatformKey, number>;
 }
 
 /**
- * Daily flow of new vs. recurring subscriptions. Useful for the "subscriber
- * growth" chart even without true churn data.
+ * Roll up a slice of entries (potentially many influencers, all platforms,
+ * the selected weekKeys) into a single dashboard-ready summary.
+ *
+ * For follower totals we take each influencer's most-recent cumulative
+ * reading inside the window and sum across influencers — that mirrors
+ * what the operator would manually compute.
  */
-export function subscriberFlow(
-  transactions: InflowwTransaction[],
-  range?: { start: Date; end: Date },
-): SubscriberFlowPoint[] {
-  const map = new Map<string, SubscriberFlowPoint>();
-
-  const ensure = (d: Date): SubscriberFlowPoint => {
-    const key = dayKey(d);
-    let point = map.get(key);
-    if (!point) {
-      point = {
-        key,
-        label: shortDateLabel(d),
-        date: new Date(d.getFullYear(), d.getMonth(), d.getDate()),
-        newSubs: 0,
-        renewals: 0,
-      };
-      map.set(key, point);
-    }
-    return point;
+export function crossPlatformAggregate(
+  perInfluencer: InfluencerEntries[],
+  weekKeys: readonly string[],
+): CrossPlatformAggregate {
+  let totalRevenue = 0;
+  let totalSpend = 0;
+  const totalFollowers: Record<AcquisitionPlatformKey, number> = {
+    reddit: 0,
+    instagram: 0,
+    x: 0,
+  };
+  const weeklyFollowerGrowth: Record<AcquisitionPlatformKey, number> = {
+    reddit: 0,
+    instagram: 0,
+    x: 0,
   };
 
-  for (const t of transactions) {
-    if (!isCountable(t)) continue;
-    if (!isAnySubscription(t)) continue;
-    const d = parseInflowwTime(t.createdTime);
-    if (!d) continue;
-    const point = ensure(d);
-    if (t.type === "Subscription") point.newSubs += 1;
-    else point.renewals += 1;
-  }
+  for (const ie of perInfluencer) {
+    const ofEntries = ie.entries.filter((e) => e.platform === "onlyfans");
+    const summary = onlyFansSummary(ofEntries, weekKeys);
+    totalRevenue += summary.totals.revenue;
+    totalSpend += summary.totals.spend;
 
-  if (range) {
-    const cursor = new Date(range.start);
-    cursor.setHours(0, 0, 0, 0);
-    const stop = new Date(range.end);
-    stop.setHours(0, 0, 0, 0);
-    while (cursor <= stop) {
-      ensure(cursor);
-      cursor.setDate(cursor.getDate() + 1);
+    for (const src of ACQUISITION_PLATFORM_KEYS) {
+      const platformEntries = ie.entries.filter((e) => e.platform === src);
+      const series = deltaSeries(platformEntries, weekKeys, "followers");
+      const lastCum = [...series].reverse().find((p) => p.cumulative !== null);
+      if (lastCum?.cumulative != null) totalFollowers[src] += lastCum.cumulative;
+      weeklyFollowerGrowth[src] += series.reduce(
+        (sum, p) => sum + (p.delta ?? 0),
+        0,
+      );
     }
   }
 
-  return Array.from(map.values()).sort(
-    (a, b) => a.date.getTime() - b.date.getTime(),
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Refund summary                                                            */
-/* -------------------------------------------------------------------------- */
-
-export interface RefundSummary {
-  count: number;
-  /** USD. The refund endpoint returns paymentAmount as decimal dollars. */
-  totalAmount: number;
-  /** Refunds whose paymentStatus is "done". */
-  completed: number;
-}
-
-export function summarizeRefunds(refunds: InflowwRefund[]): RefundSummary {
-  let count = 0;
-  let totalAmount = 0;
-  let completed = 0;
-  for (const r of refunds) {
-    count += 1;
-    // Live API returns paymentAmount as cents-string ("2999" = $29.99).
-    totalAmount += inflowwAmount(r.paymentAmount, "cents");
-    if (r.paymentStatus === "done") completed += 1;
-  }
-  return { count, totalAmount, completed };
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Link summaries                                                            */
-/* -------------------------------------------------------------------------- */
-
-export interface LinkSummary {
-  totalLinks: number;
-  totalSubs: number;
-  totalEarningsNet: number;
-  totalEarningsGross: number;
-}
-
-export function summarizeLinks(links: InflowwLink[]): LinkSummary {
-  let totalSubs = 0;
-  let totalEarningsNet = 0;
-  let totalEarningsGross = 0;
-  for (const link of links) {
-    totalEarningsNet += inflowwAmount(link.earningsNet, "cents");
-    totalEarningsGross += inflowwAmount(link.earningsGross, "cents");
-    // subCount is "string | number" in live data; coerce safely.
-    if ("subCount" in link && link.subCount !== undefined) {
-      const n = Number(link.subCount);
-      if (Number.isFinite(n)) totalSubs += n;
-    }
-  }
   return {
-    totalLinks: links.length,
-    totalSubs,
-    totalEarningsNet,
-    totalEarningsGross,
+    influencerCount: perInfluencer.length,
+    totalRevenue,
+    totalSpend,
+    net: totalRevenue - totalSpend,
+    roas: totalSpend > 0 ? totalRevenue / totalSpend : null,
+    totalFollowers,
+    weeklyFollowerGrowth,
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Misc convenience                                                          */
+/* -------------------------------------------------------------------------- */
+
+/** Find the most recent prior entry for a cumulative field, useful as a
+ *  prefill hint in the entry form ("Last entry: 12,340"). */
+export function priorCumulativeValue(
+  entries: WeeklyEntry[],
+  beforeWeekKey: string,
+  fieldKey: string,
+): { weekKey: string; value: number } | null {
+  const candidates = entries
+    .filter((e) => e.weekKey < beforeWeekKey && typeof e.data?.[fieldKey] === "number")
+    .sort((a, b) => (a.weekKey < b.weekKey ? 1 : -1));
+  if (candidates.length === 0) return null;
+  const top = candidates[0];
+  return { weekKey: top.weekKey, value: top.data[fieldKey] };
 }

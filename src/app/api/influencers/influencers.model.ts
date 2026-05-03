@@ -2,9 +2,15 @@
  * Mongoose model for the `influencers` collection.
  *
  * Schema notes:
- *   - inflowwCreatorId is a sparse unique index. Multiple manual influencers
- *     can have null/missing it, but no two synced ones can share an Infloww ID.
- *   - handles is an embedded sub-document with optional reddit/instagram strings.
+ *   - All influencers are created manually now (the Infloww sync was removed).
+ *   - `handles` is an embedded sub-document with one optional string per
+ *     platform key. Empty / missing means the influencer doesn't have an
+ *     account on that platform; the dashboard still renders the section so
+ *     the operator can enter weekly data when they do.
+ *   - Existing documents in production may still carry deprecated keys
+ *     (`inflowwCreatorId`, `inflowwUserName`, `isManual`). They're harmless
+ *     leftovers — the model just stops reading them. Drop the fields out of
+ *     band if you want a clean collection.
  */
 import "server-only";
 import mongoose, { Schema } from "mongoose";
@@ -12,13 +18,12 @@ import mongoose, { Schema } from "mongoose";
 export interface InfluencerDoc {
   _id: mongoose.Types.ObjectId;
   name: string;
-  inflowwCreatorId?: string | null;
-  inflowwUserName?: string | null;
   handles: {
     reddit?: string | null;
     instagram?: string | null;
+    x?: string | null;
+    onlyfans?: string | null;
   };
-  isManual: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -26,17 +31,12 @@ export interface InfluencerDoc {
 const InfluencerSchema = new Schema<InfluencerDoc>(
   {
     name: { type: String, required: true, trim: true },
-    inflowwCreatorId: {
-      type: String,
-      default: null,
-      index: { unique: true, sparse: true },
-    },
-    inflowwUserName: { type: String, default: null },
     handles: {
       reddit: { type: String, default: null, trim: true },
       instagram: { type: String, default: null, trim: true },
+      x: { type: String, default: null, trim: true },
+      onlyfans: { type: String, default: null, trim: true },
     },
-    isManual: { type: Boolean, default: false, index: true },
   },
   { timestamps: true, collection: "influencers" },
 );

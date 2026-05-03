@@ -2,7 +2,6 @@ import api from "@/lib/api";
 import type {
   CreateInfluencerBody,
   Influencer,
-  SyncResult,
   UpdateInfluencerBody,
 } from "./types";
 
@@ -23,7 +22,7 @@ class InfluencersService {
     return data.data;
   }
 
-  async createManual(body: CreateInfluencerBody): Promise<Influencer> {
+  async create(body: CreateInfluencerBody): Promise<Influencer> {
     const { data } = await api.post<{ data: Influencer }>(this.url(), body);
     return data.data;
   }
@@ -35,11 +34,6 @@ class InfluencersService {
 
   async remove(id: string): Promise<void> {
     await api.delete(this.url(`/${id}`));
-  }
-
-  async sync(): Promise<SyncResult> {
-    const { data } = await api.post<{ data: SyncResult }>(this.url("/sync"));
-    return data.data;
   }
 }
 
