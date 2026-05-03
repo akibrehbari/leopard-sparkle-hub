@@ -1,13 +1,18 @@
 /**
- * Browser-side Infloww service functions.
+ * Browser-side Infloww service class.
  *
- * One function per proxy endpoint. Each function:
- *   - Accepts typed query parameters.
- *   - Calls the axios instance from api.ts (NOT openapi.infloww.com).
- *   - Returns typed data; throws ApiError on non-2xx (mapped by interceptor).
- *   - Knows nothing about React or React Query.
+ * Layer contract (per api-architecture rule):
+ *   Component → hooks.ts → InflowwService (class) → api.ts (axios instance)
  *
- * Imported by infloww.hooks.ts (React Query wrappers).
+ * BASE_PATH is the sub-path under the origin that this service owns. The axios
+ * instance carries only the origin (e.g. http://localhost:3000), so every
+ * request resolves to: origin + BASE_PATH + endpoint.
+ *
+ * Rules:
+ *   - One method per proxy endpoint.
+ *   - Accepts typed params, returns typed data.
+ *   - Throws ApiError on non-2xx (mapped by the axios interceptor in api.ts).
+ *   - No React or React Query dependencies.
  */
 
 import type {
@@ -22,34 +27,11 @@ import type {
 import api from "./api";
 
 /* -------------------------------------------------------------------------- */
-/*  Shared URL builder                                                        */
-/* -------------------------------------------------------------------------- */
-
-function buildParams(params: Record<string, unknown>): URLSearchParams {
-  const sp = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) {
-    if (v === undefined || v === null || v === "") continue;
-    sp.set(k, String(v));
-  }
-  return sp;
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Service functions                                                         */
+/*  Param types                                                               */
 /* -------------------------------------------------------------------------- */
 
 export interface GetCreatorsParams {
   limit?: number;
-}
-
-export async function getCreators(
-  params: GetCreatorsParams = {},
-): Promise<InflowwEnvelope<InflowwCreator>> {
-  const sp = buildParams({ limit: params.limit ?? 50 });
-  const { data } = await api.get<InflowwEnvelope<InflowwCreator>>(
-    `/creators?${sp}`,
-  );
-  return data;
 }
 
 export interface GetTransactionsParams {
@@ -61,44 +43,12 @@ export interface GetTransactionsParams {
   all?: boolean;
 }
 
-export async function getTransactions(
-  params: GetTransactionsParams,
-): Promise<InflowwEnvelope<InflowwTransaction>> {
-  const sp = buildParams({
-    creatorId: params.creatorId,
-    startTime: params.startTime,
-    endTime: params.endTime,
-    limit: params.limit,
-    all: params.all ? "1" : undefined,
-  });
-  const { data } = await api.get<InflowwEnvelope<InflowwTransaction>>(
-    `/transactions?${sp}`,
-  );
-  return data;
-}
-
 export interface GetRefundsParams {
   creatorId: string;
   startTime?: string | number;
   endTime?: string | number;
   limit?: number;
   all?: boolean;
-}
-
-export async function getRefunds(
-  params: GetRefundsParams,
-): Promise<InflowwEnvelope<InflowwRefund>> {
-  const sp = buildParams({
-    creatorId: params.creatorId,
-    startTime: params.startTime,
-    endTime: params.endTime,
-    limit: params.limit,
-    all: params.all ? "1" : undefined,
-  });
-  const { data } = await api.get<InflowwEnvelope<InflowwRefund>>(
-    `/refunds?${sp}`,
-  );
-  return data;
 }
 
 export interface GetLinksParams {
@@ -109,20 +59,6 @@ export interface GetLinksParams {
   limit?: number;
 }
 
-export async function getLinks(
-  params: GetLinksParams,
-): Promise<InflowwEnvelope<InflowwLink>> {
-  const sp = buildParams({
-    creatorId: params.creatorId,
-    linkType: params.linkType ?? "TRIAL",
-    startTime: params.startTime,
-    endTime: params.endTime,
-    limit: params.limit,
-  });
-  const { data } = await api.get<InflowwEnvelope<InflowwLink>>(`/links?${sp}`);
-  return data;
-}
-
 export interface GetLinkFansParams {
   creatorId: string;
   linkId: string;
@@ -130,17 +66,100 @@ export interface GetLinkFansParams {
   limit?: number;
 }
 
-export async function getLinkFans(
-  params: GetLinkFansParams,
-): Promise<InflowwEnvelope<InflowwLinkFan>> {
-  const sp = buildParams({
-    creatorId: params.creatorId,
-    linkId: params.linkId,
-    linkType: params.linkType,
-    limit: params.limit,
-  });
-  const { data } = await api.get<InflowwEnvelope<InflowwLinkFan>>(
-    `/linkfans?${sp}`,
-  );
-  return data;
+/* -------------------------------------------------------------------------- */
+/*  Service class                                                             */
+/* -------------------------------------------------------------------------- */
+
+class InflowwService {
+  /** Sub-path under the axios instance's origin for all Infloww proxy routes. */
+  private static readonly BASE_PATH = "/api/infloww";
+
+  private url(endpoint: string): string {
+    return `${InflowwService.BASE_PATH}${endpoint}`;
+  }
+
+  private buildParams(params: Record<string, unknown>): URLSearchParams {
+    const sp = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) {
+      if (v === undefined || v === null || v === "") continue;
+      sp.set(k, String(v));
+    }
+    return sp;
+  }
+
+  async getCreators(
+    params: GetCreatorsParams = {},
+  ): Promise<InflowwEnvelope<InflowwCreator>> {
+    const sp = this.buildParams({ limit: params.limit ?? 50 });
+    const { data } = await api.get<InflowwEnvelope<InflowwCreator>>(
+      `${this.url("/creators")}?${sp}`,
+    );
+    return data;
+  }
+
+  async getTransactions(
+    params: GetTransactionsParams,
+  ): Promise<InflowwEnvelope<InflowwTransaction>> {
+    const sp = this.buildParams({
+      creatorId: params.creatorId,
+      startTime: params.startTime,
+      endTime: params.endTime,
+      limit: params.limit,
+      all: params.all ? "1" : undefined,
+    });
+    const { data } = await api.get<InflowwEnvelope<InflowwTransaction>>(
+      `${this.url("/transactions")}?${sp}`,
+    );
+    return data;
+  }
+
+  async getRefunds(
+    params: GetRefundsParams,
+  ): Promise<InflowwEnvelope<InflowwRefund>> {
+    const sp = this.buildParams({
+      creatorId: params.creatorId,
+      startTime: params.startTime,
+      endTime: params.endTime,
+      limit: params.limit,
+      all: params.all ? "1" : undefined,
+    });
+    const { data } = await api.get<InflowwEnvelope<InflowwRefund>>(
+      `${this.url("/refunds")}?${sp}`,
+    );
+    return data;
+  }
+
+  async getLinks(
+    params: GetLinksParams,
+  ): Promise<InflowwEnvelope<InflowwLink>> {
+    const sp = this.buildParams({
+      creatorId: params.creatorId,
+      linkType: params.linkType ?? "TRIAL",
+      startTime: params.startTime,
+      endTime: params.endTime,
+      limit: params.limit,
+    });
+    const { data } = await api.get<InflowwEnvelope<InflowwLink>>(
+      `${this.url("/links")}?${sp}`,
+    );
+    return data;
+  }
+
+  async getLinkFans(
+    params: GetLinkFansParams,
+  ): Promise<InflowwEnvelope<InflowwLinkFan>> {
+    const sp = this.buildParams({
+      creatorId: params.creatorId,
+      linkId: params.linkId,
+      linkType: params.linkType,
+      limit: params.limit,
+    });
+    const { data } = await api.get<InflowwEnvelope<InflowwLinkFan>>(
+      `${this.url("/linkfans")}?${sp}`,
+    );
+    return data;
+  }
 }
+
+/** Singleton instance — import this directly in hooks.ts. */
+export const inflowwService = new InflowwService();

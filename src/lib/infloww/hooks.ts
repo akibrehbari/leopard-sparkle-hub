@@ -11,13 +11,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import type { InflowwLinkType } from "./types";
-import {
-  getCreators,
-  getLinks,
-  getLinkFans,
-  getRefunds,
-  getTransactions,
-} from "./infloww.service";
+import { inflowwService } from "./infloww.service";
 
 /* -------------------------------------------------------------------------- */
 /*  Creators                                                                  */
@@ -26,7 +20,7 @@ import {
 export function useCreators(opts: { limit?: number } = {}) {
   return useQuery({
     queryKey: ["infloww", "creators", opts],
-    queryFn: () => getCreators({ limit: opts.limit }),
+    queryFn: () => inflowwService.getCreators({ limit: opts.limit }),
     // Creator list rarely changes — 15-min stale window.
     staleTime: 15 * 60 * 1000,
   });
@@ -50,7 +44,7 @@ export function useTransactions(opts: UseTransactionsOptions) {
     enabled: Boolean(opts.creatorId),
     queryKey: ["infloww", "transactions", opts],
     queryFn: () =>
-      getTransactions({
+      inflowwService.getTransactions({
         creatorId: opts.creatorId!,
         startTime: opts.startTime,
         endTime: opts.endTime,
@@ -78,7 +72,7 @@ export function useRefunds(opts: UseRefundsOptions) {
     enabled: Boolean(opts.creatorId),
     queryKey: ["infloww", "refunds", opts],
     queryFn: () =>
-      getRefunds({
+      inflowwService.getRefunds({
         creatorId: opts.creatorId!,
         startTime: opts.startTime,
         endTime: opts.endTime,
@@ -106,7 +100,7 @@ export function useLinks(opts: UseLinksOptions) {
     enabled: Boolean(opts.creatorId),
     queryKey: ["infloww", "links", opts],
     queryFn: () =>
-      getLinks({
+      inflowwService.getLinks({
         creatorId: opts.creatorId!,
         linkType: opts.linkType,
         startTime: opts.startTime,
@@ -134,7 +128,7 @@ export function useLinkFans(opts: UseLinkFansOptions) {
     enabled: Boolean(opts.creatorId && opts.linkId),
     queryKey: ["infloww", "linkfans", opts],
     queryFn: () =>
-      getLinkFans({
+      inflowwService.getLinkFans({
         creatorId: opts.creatorId!,
         linkId: opts.linkId!,
         linkType: opts.linkType,

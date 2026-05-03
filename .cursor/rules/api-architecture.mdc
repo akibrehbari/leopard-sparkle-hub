@@ -1,0 +1,81 @@
+---
+description: Three-layer API architecture (component → hooks → service class → axios)
+globs: src/lib/**/*.ts,src/lib/**/*.tsx
+alwaysApply: false
+---
+
+# API layer architecture
+
+Every API integration follows the same three-layer split. The Infloww
+integration is the canonical example — mirror its shape for any new domain.
+
+## Layer flow
+
+```
+Component / Page
+      ↓
+<domain>.hooks.ts          ← React Query wrappers only
+      ↓
+<domain>.service.ts        ← class with one method per endpoint
+      ↓
+api.ts                     ← single shared axios instance (origin only)
+```
+
+## Layer responsibilities
+
+1. **`<domain>.hooks.ts`** — thin React Query wrappers (`useQuery`,
+   `useMutation`). Owns `queryKey`, `staleTime`, `enabled`. Contains no
+   fetch/axios calls. Calls methods on the singleton service instance.
+
+2. **`<domain>.service.ts`** — a **class** with one method per endpoint.
+   Exports a singleton instance (`export const xService = new XService()`).
+   Defines a `private static readonly BASE_PATH` constant for its sub-path
+   (e.g. `"/api/infloww"`). Knows nothing about React or React Query.
+
+3. **`api.ts`** — a single axios instance whose `baseURL` is the **origin
+   only** (e.g. `http://localhost:3000` in dev, the deployed origin in prod).
+   Each service class composes the full URL as `BASE_PATH + endpoint`.
+   Owns the response interceptor that maps non-2xx into `ApiError`.
+
+## URL composition
+
+```
+axios baseURL          service BASE_PATH    endpoint
+http://localhost:3000  +  /api/infloww   +  /creators
+                       ↑ defined in          ↑ passed to api.get()
+                         service class
+```
+
+## Naming and location
+
+For a domain `X`, colocate `x.hooks.ts` and `x.service.ts` under
+`src/lib/<domain>/`. Keep the shared `api.ts` at `src/lib/<domain>/api.ts`
+(or `src/lib/api.ts` if shared across domains).
+
+## Example skeleton
+
+```typescript
+// x.service.ts
+class XService {
+  private static readonly BASE_PATH = "/api/x";
+
+  private url(endpoint: string) {
+    return `${XService.BASE_PATH}${endpoint}`;
+  }
+
+  async getItems(params: GetItemsParams): Promise<ItemsResponse> {
+    const { data } = await api.get(this.url("/items"), { params });
+    return data;
+  }
+}
+
+export const xService = new XService();
+
+// x.hooks.ts
+export function useItems(opts: UseItemsOptions) {
+  return useQuery({
+    queryKey: ["x", "items", opts],
+    queryFn: () => xService.getItems(opts),
+  });
+}
+```

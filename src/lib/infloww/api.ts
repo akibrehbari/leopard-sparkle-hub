@@ -1,12 +1,13 @@
 /**
- * Browser-side axios instance for the eLeopards proxy API.
+ * Shared axios instance for all browser-side API calls.
  *
- * This instance talks to our own Next.js route handlers (/api/infloww/*),
- * NOT to openapi.infloww.com directly. The real Infloww API key never
- * leaves the server; server-side calls go through src/lib/infloww/client.ts.
+ * baseURL is the origin only (e.g. http://localhost:3000 in dev,
+ * https://leopard-sparkle-hub.vercel.app in prod). Each service class defines
+ * its own BASE_PATH constant and prepends it to every request path, so the
+ * full URL becomes: origin + BASE_PATH + endpoint.
  *
  * Responsibilities:
- *   - Base URL so service functions only write the path.
+ *   - Single axios instance shared across all service classes.
  *   - Response interceptor that maps non-2xx into ApiError with a typed
  *     `status` field, which the QueryClient retry policy reads to bail on 4xx.
  */
@@ -23,7 +24,7 @@ export class ApiError extends Error {
 }
 
 const api = axios.create({
-  baseURL: "/api/infloww",
+  baseURL: typeof window !== "undefined" ? window.location.origin : "http://localhost:3000",
   withCredentials: true,
   headers: { Accept: "application/json" },
 });
