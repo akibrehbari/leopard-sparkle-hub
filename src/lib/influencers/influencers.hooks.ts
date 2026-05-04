@@ -10,10 +10,11 @@ import type {
 const LIST_KEY = ["influencers", "list"] as const;
 const detailKey = (id: string) => ["influencers", "detail", id] as const;
 
-export function useInfluencers() {
+export function useInfluencers(options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: LIST_KEY,
     queryFn: () => influencersService.list(),
+    enabled: options.enabled ?? true,
   });
 }
 

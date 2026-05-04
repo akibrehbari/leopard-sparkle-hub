@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Read-only renderer for /share/[id].
+ * Read-only renderer for `/share?ids=...&selected=...&range=...`.
  *
  * Mirrors `views/Index.tsx`'s 4-section layout (OnlyFans → Reddit → IG → X)
  * but consumes a server-prefetched `SharePayload`. The dashboard widgets
@@ -9,7 +9,9 @@
  * client-side data fetching, without auth, and without exposing the entry
  * forms.
  *
- * No sidebar — this view is built for external recipients with the URL.
+ * The topbar exposes a model switcher dropdown when `roster.length > 1`.
+ * Switching models navigates to a new URL with the same `ids` and `range`
+ * but a different `selected`, triggering a fresh server render.
  */
 
 import { useRef, useState } from "react";
@@ -22,6 +24,8 @@ import { ModelOverview } from "@/components/dashboard/ModelOverview";
 import { OnlyFansAttributionSection } from "@/components/dashboard/OnlyFansAttributionSection";
 import { PlatformBadge } from "@/components/dashboard/PlatformBadge";
 import { PlatformSection } from "@/components/dashboard/PlatformSection";
+import { ShareSwitcher } from "@/components/dashboard/ShareSwitcher";
+import { SubredditTable } from "@/components/subreddits/SubredditTable";
 import { cn } from "@/lib/utils";
 import { exportElementToPdf, pdfFilename } from "@/lib/utils/pdf";
 import {
@@ -29,6 +33,7 @@ import {
   type DashboardRange,
 } from "@/lib/utils/range";
 import type { SharePayload } from "@/lib/share/types";
+import { buildShareUrl } from "@/lib/share/url";
 import { pkt } from "@/lib/utils/dayjs";
 
 interface Props {
@@ -39,17 +44,25 @@ export function ShareDashboard({ payload }: Props) {
   const router = useRouter();
   const search = useSearchParams();
   const range = payload.range;
-  const { influencer, entries, platforms } = payload;
+  const { influencer, entries, platforms, roster, subreddits } = payload;
 
   const [exporting, setExporting] = useState(false);
   const captureRef = useRef<HTMLDivElement>(null);
 
-  const setRange = (next: DashboardRange) => {
-    const params = new URLSearchParams(search.toString());
-    params.set("range", next);
-    router.push(`/share/${influencer._id}?${params.toString()}`, {
-      scroll: false,
+  // Read the canonical id list from the URL so we keep the operator's
+  // original selection intact when the recipient swaps models or ranges.
+  const idsParam = search.get("ids");
+  const rosterIds = idsParam
+    ? idsParam.split(",").filter(Boolean)
+    : roster.map((r) => r._id);
+
+  const navigateTo = (next: { selected?: string; range?: DashboardRange }) => {
+    const url = buildShareUrl({
+      ids: rosterIds,
+      selected: next.selected ?? influencer._id,
+      range: next.range ?? range,
     });
+    router.push(url, { scroll: false });
   };
 
   const handleExportPdf = async () => {
@@ -70,9 +83,12 @@ export function ShareDashboard({ payload }: Props) {
         title={influencer.name}
         subtitle="Read-only share · Live data, refreshed on each visit"
         range={range}
-        onRangeChange={setRange}
+        onRangeChange={(r) => navigateTo({ range: r })}
         onExportPdf={handleExportPdf}
         exporting={exporting}
+        roster={roster}
+        currentId={influencer._id}
+        onSelectInfluencer={(id) => navigateTo({ selected: id })}
       />
 
       <div
@@ -125,6 +141,18 @@ export function ShareDashboard({ payload }: Props) {
           />
         </section>
 
+        <section className="mb-8">
+          <PlatformBadge platform="reddit" suffix="subreddits" />
+          <SubredditTable
+            subreddits={subreddits}
+            filterByInfluencerId={influencer._id}
+            prefetchedInfluencers={roster}
+            readOnly
+            compact
+            emptyMessage="No subreddits linked to this model."
+          />
+        </section>
+
         <ShareFooter generatedAt={payload.generatedAt} />
       </div>
     </div>
@@ -142,6 +170,9 @@ function ShareTopbar({
   onRangeChange,
   onExportPdf,
   exporting,
+  roster,
+  currentId,
+  onSelectInfluencer,
 }: {
   title: string;
   subtitle: string;
@@ -149,6 +180,9 @@ function ShareTopbar({
   onRangeChange: (r: DashboardRange) => void;
   onExportPdf: () => void;
   exporting: boolean;
+  roster: SharePayload["roster"];
+  currentId: string;
+  onSelectInfluencer: (id: string) => void;
 }) {
   return (
     <header className="border-b border-border bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-30">
@@ -164,7 +198,14 @@ function ShareTopbar({
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 no-print">
+        <div className="flex items-center gap-2 no-print flex-wrap">
+          {roster.length > 1 && (
+            <ShareSwitcher
+              roster={roster}
+              currentId={currentId}
+              onSelect={onSelectInfluencer}
+            />
+          )}
           <div className="flex items-center rounded-lg bg-secondary/50 border border-border p-1">
             {DASHBOARD_RANGES.map((r) => (
               <button

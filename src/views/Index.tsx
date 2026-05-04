@@ -26,6 +26,7 @@ import {
   AlertTriangle,
   DollarSign,
   Layers,
+  MessagesSquare,
   Receipt,
   Target,
   TrendingUp,
@@ -40,11 +41,14 @@ import { ModelOverview } from "@/components/dashboard/ModelOverview";
 import { OnlyFansAttributionSection } from "@/components/dashboard/OnlyFansAttributionSection";
 import { PlatformSection } from "@/components/dashboard/PlatformSection";
 import { PlatformBadge } from "@/components/dashboard/PlatformBadge";
+import { ShareLinkDialog } from "@/components/dashboard/ShareLinkDialog";
+import { SubredditTable } from "@/components/subreddits/SubredditTable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 
 import { useInfluencers } from "@/lib/influencers/influencers.hooks";
 import { useEntries } from "@/lib/entries/entries.hooks";
+import { useSubreddits } from "@/lib/subreddits/subreddits.hooks";
 import {
   ACQUISITION_PLATFORM_KEYS,
   PLATFORMS,
@@ -81,6 +85,7 @@ function DashboardContent() {
 
   const [range, setRange] = useState<DashboardRange>("30d");
   const [exporting, setExporting] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const captureRef = useRef<HTMLDivElement>(null);
 
   const setSelectedId = (id: string) => {
@@ -184,27 +189,15 @@ function DashboardContent() {
         exporting={exporting}
         onExportPdf={handleExportPdf}
         onShare={
-          selectedInfluencer
-            ? () => {
-                const url = `${window.location.origin}/share/${selectedInfluencer._id}?range=${range}`;
-                navigator.clipboard
-                  .writeText(url)
-                  .then(() =>
-                    toast({
-                      title: "Share link copied",
-                      description: `${selectedInfluencer.name} · ${RANGE_LABELS[range]} (read-only, no login required)`,
-                    }),
-                  )
-                  .catch(() =>
-                    toast({
-                      title: "Could not copy link",
-                      description: url,
-                      variant: "destructive",
-                    }),
-                  );
-              }
-            : undefined
+          influencers.length > 0 ? () => setShareDialogOpen(true) : undefined
         }
+      />
+
+      <ShareLinkDialog
+        open={shareDialogOpen}
+        onOpenChange={setShareDialogOpen}
+        range={range}
+        initialInfluencerId={selectedInfluencer?._id ?? null}
       />
 
       <div className="mb-6">
@@ -251,6 +244,11 @@ function DashboardContent() {
               influencer={selectedInfluencer}
               platform="x"
             />
+          </section>
+
+          <section className="mb-8">
+            <PlatformBadge platform="reddit" suffix="subreddits" />
+            <InfluencerSubredditsSection influencerId={selectedInfluencer._id} />
           </section>
         </>
       ) : null}
@@ -408,13 +406,83 @@ function AggregateOverview({
         </div>
       </section>
 
-      <div className="rounded-xl border border-dashed border-border bg-secondary/20 p-6 text-center">
-        <p className="text-sm text-muted-foreground max-w-md mx-auto">
+      <section className="mb-8">
+        <h3 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider flex items-center gap-1.5">
+          <MessagesSquare className="size-3" />
+          Subreddits across roster
+        </h3>
+        <RosterSubredditsSection />
+        <p className="mt-3 text-xs text-muted-foreground text-center">
           Pick an influencer from the sidebar to see their per-platform
           breakdown, charts, and weekly entry forms.
         </p>
-      </div>
+      </section>
     </>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Subreddit sections                                                        */
+/* -------------------------------------------------------------------------- */
+
+function RosterSubredditsSection() {
+  const subredditsQ = useSubreddits();
+
+  if (subredditsQ.isLoading) {
+    return (
+      <div className="card-surface rounded-xl p-6 space-y-2">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-10 w-full rounded-md" />
+        ))}
+      </div>
+    );
+  }
+
+  if (subredditsQ.isError) {
+    return (
+      <div className="card-surface rounded-xl p-6 text-sm text-destructive">
+        Couldn't load subreddits: {(subredditsQ.error as Error).message}
+      </div>
+    );
+  }
+
+  return (
+    <SubredditTable
+      subreddits={subredditsQ.data ?? []}
+      compact
+      emptyMessage="No subreddits tracked yet. Add some on the Subreddits page."
+    />
+  );
+}
+
+function InfluencerSubredditsSection({ influencerId }: { influencerId: string }) {
+  const subredditsQ = useSubreddits();
+
+  if (subredditsQ.isLoading) {
+    return (
+      <div className="card-surface rounded-xl p-6 space-y-2">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-10 w-full rounded-md" />
+        ))}
+      </div>
+    );
+  }
+
+  if (subredditsQ.isError) {
+    return (
+      <div className="card-surface rounded-xl p-6 text-sm text-destructive">
+        Couldn't load subreddits: {(subredditsQ.error as Error).message}
+      </div>
+    );
+  }
+
+  return (
+    <SubredditTable
+      subreddits={subredditsQ.data ?? []}
+      filterByInfluencerId={influencerId}
+      compact
+      emptyMessage="No subreddits linked to this model yet."
+    />
   );
 }
 

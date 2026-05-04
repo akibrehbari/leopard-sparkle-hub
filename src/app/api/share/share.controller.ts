@@ -20,6 +20,7 @@ import mongoose from "mongoose";
 import { connectMongo } from "@/lib/db/mongo";
 import { InfluencerModel, type InfluencerDoc } from "@/app/api/influencers/influencers.model";
 import { WeeklyEntryModel, type WeeklyEntryDoc } from "@/app/api/entries/entries.model";
+import { subredditsController } from "@/app/api/subreddits/subreddits.controller";
 import {
   PLATFORMS,
   PLATFORM_KEYS,
@@ -33,7 +34,7 @@ import {
 } from "@/lib/utils/range";
 import type { Influencer, InfluencerHandles } from "@/lib/influencers/types";
 import type { WeeklyEntry } from "@/lib/entries/types";
-import type { SharePayload } from "@/lib/share/types";
+import type { SharePayload, ShareRosterMember } from "@/lib/share/types";
 
 const HISTORY_WEEKS = 12;
 
@@ -45,6 +46,12 @@ class ShareController {
   async buildPayload(args: {
     influencerId: string;
     range: DashboardRange;
+    /**
+     * IDs of all models reachable from this share link, used to populate
+     * the recipient-side switcher. The currently-shown `influencerId`
+     * MUST be in this list; if omitted, the roster is just `[influencerId]`.
+     */
+    rosterIds?: string[];
   }): Promise<SharePayload> {
     if (!mongoose.isValidObjectId(args.influencerId)) {
       throw new ShareNotFoundError("Invalid influencer id");
@@ -58,11 +65,19 @@ class ShareController {
     const window = rangeToDates(args.range);
     const weekKeys = lastNWeeks(HISTORY_WEEKS);
 
-    const entriesByPlatform = await this.fetchEntries(
-      args.influencerId,
-      PLATFORM_KEYS,
-      weekKeys,
-    );
+    const rosterIds =
+      args.rosterIds && args.rosterIds.length > 0
+        ? args.rosterIds
+        : [args.influencerId];
+
+    const [entriesByPlatform, roster, subreddits] = await Promise.all([
+      this.fetchEntries(args.influencerId, PLATFORM_KEYS, weekKeys),
+      this.fetchRosterSummaries(rosterIds),
+      // Pull every subreddit linked to any model in the roster — that way
+      // the recipient can switch between models and see each one's
+      // subreddits without us re-fetching on the client.
+      subredditsController.fetchListWithLatest({ influencerIds: rosterIds }),
+    ]);
 
     return {
       influencer,
@@ -73,8 +88,38 @@ class ShareController {
       },
       entries: entriesByPlatform,
       platforms: PLATFORMS,
+      roster,
+      subreddits,
       generatedAt: new Date().toISOString(),
     };
+  }
+
+  /**
+   * Fetch a minimal summary (id + name) for every requested influencer.
+   *
+   * Used to populate the share switcher dropdown without round-tripping for
+   * each model individually. Invalid ObjectIds are silently dropped; the
+   * caller is expected to validate the primary id separately.
+   */
+  async fetchRosterSummaries(ids: string[]): Promise<ShareRosterMember[]> {
+    const validIds = ids.filter((id) => mongoose.isValidObjectId(id));
+    if (validIds.length === 0) return [];
+
+    await connectMongo();
+    const objIds = validIds.map((id) => new mongoose.Types.ObjectId(id));
+    const docs = await InfluencerModel.find({ _id: { $in: objIds } })
+      .select({ _id: 1, name: 1 })
+      .lean<Array<Pick<InfluencerDoc, "_id" | "name">>>();
+
+    // Preserve the caller's order so the dropdown matches the share-link
+    // sequence rather than Mongo's internal order.
+    const byId = new Map(docs.map((d) => [d._id.toString(), d.name]));
+    return validIds
+      .map((id) => {
+        const name = byId.get(id);
+        return name ? { _id: id, name } : null;
+      })
+      .filter((m): m is ShareRosterMember => m !== null);
   }
 
   /* ---------------------------------------------------------------------- */

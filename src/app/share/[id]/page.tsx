@@ -1,27 +1,16 @@
 /**
- * Public read-only dashboard.
+ * Backwards-compat redirect for the legacy single-model share URL.
  *
- * URL: /share/<influencerId>?range=7d|30d|90d
+ * Old URL: /share/<influencerId>?range=30d
+ * New URL: /share?ids=<id>&selected=<id>&range=30d
  *
- * This page is a Server Component that calls the share controller directly
- * (no HTTP self-call) and hands the resulting payload to the client renderer.
- * Middleware bypasses this path; the influencer ObjectId is the credential.
- *
- * Data is always live — every request re-queries Mongo. Rolling windows
- * ("last 30 days") are anchored to the request time, not when the link was
- * originally generated.
+ * Old links operators have already shared keep working. The redirect is a
+ * 308 (permanent) so any aggregator that follows them updates its cache.
  */
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 
-import {
-  ShareNotFoundError,
-  shareController,
-} from "@/app/api/share/share.controller";
-import {
-  DASHBOARD_RANGES,
-  type DashboardRange,
-} from "@/lib/utils/range";
-import { ShareDashboard } from "./ShareDashboard";
+import { buildShareUrl } from "@/lib/share/url";
+import { DASHBOARD_RANGES, type DashboardRange } from "@/lib/utils/range";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,19 +27,9 @@ function parseRange(raw: string | undefined): DashboardRange {
   return "30d";
 }
 
-export default async function SharePage({ params, searchParams }: Props) {
+export default async function LegacySharePage({ params, searchParams }: Props) {
   const { id } = await params;
   const { range: rawRange } = await searchParams;
   const range = parseRange(rawRange);
-
-  try {
-    const payload = await shareController.buildPayload({
-      influencerId: id,
-      range,
-    });
-    return <ShareDashboard payload={payload} />;
-  } catch (err) {
-    if (err instanceof ShareNotFoundError) notFound();
-    throw err;
-  }
+  redirect(buildShareUrl({ ids: [id], selected: id, range }));
 }

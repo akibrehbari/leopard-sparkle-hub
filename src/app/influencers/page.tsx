@@ -36,6 +36,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { useSession } from "@/lib/auth/auth.hooks";
+import { isAdmin } from "@/lib/auth/roles";
 import {
   useCreateInfluencer,
   useDeleteInfluencer,
@@ -87,6 +89,8 @@ function toHandlesPayload(
 export default function InfluencersPage() {
   const { toast } = useToast();
   const { data: influencers, isLoading, isError, error } = useInfluencers();
+  const { data: session } = useSession();
+  const canEdit = isAdmin(session?.role);
 
   const create = useCreateInfluencer();
   const removeMut = useDeleteInfluencer();
@@ -141,12 +145,14 @@ export default function InfluencersPage() {
               tracked platform.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
-              <Plus className="size-4" />
-              Add influencer
-            </Button>
-          </div>
+          {canEdit && (
+            <div className="flex items-center gap-2">
+              <Button size="sm" onClick={() => setCreateOpen(true)}>
+                <Plus className="size-4" />
+                Add influencer
+              </Button>
+            </div>
+          )}
         </header>
 
         <div className="card-surface rounded-xl overflow-hidden">
@@ -163,10 +169,16 @@ export default function InfluencersPage() {
           ) : !influencers || influencers.length === 0 ? (
             <div className="p-12 text-center text-sm text-muted-foreground">
               <p>No influencers yet.</p>
-              <p className="mt-1 text-xs">
-                Click <strong className="text-foreground">Add influencer</strong>{" "}
-                above to create your first one.
-              </p>
+              {canEdit ? (
+                <p className="mt-1 text-xs">
+                  Click <strong className="text-foreground">Add influencer</strong>{" "}
+                  above to create your first one.
+                </p>
+              ) : (
+                <p className="mt-1 text-xs">
+                  Ask an admin to add the first influencer.
+                </p>
+              )}
             </div>
           ) : (
             <Table>
@@ -176,7 +188,7 @@ export default function InfluencersPage() {
                   {PLATFORM_KEYS.map((k) => (
                     <TableHead key={k}>{PLATFORMS[k].label}</TableHead>
                   ))}
-                  <TableHead className="w-24" />
+                  {canEdit && <TableHead className="w-24" />}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -184,6 +196,7 @@ export default function InfluencersPage() {
                   <InfluencerRow
                     key={inf._id}
                     influencer={inf}
+                    canEdit={canEdit}
                     onDelete={() => handleDelete(inf._id, inf.name)}
                   />
                 ))}
@@ -254,9 +267,11 @@ export default function InfluencersPage() {
 
 function InfluencerRow({
   influencer,
+  canEdit,
   onDelete,
 }: {
   influencer: Influencer;
+  canEdit: boolean;
   onDelete: () => void;
 }) {
   const update = useUpdateInfluencer();
@@ -322,7 +337,7 @@ function InfluencerRow({
       </TableCell>
       {PLATFORM_KEYS.map((k) => (
         <TableCell key={k}>
-          {editing ? (
+          {editing && canEdit ? (
             <Input
               value={draft[k]}
               onChange={(e) =>
@@ -340,6 +355,7 @@ function InfluencerRow({
           )}
         </TableCell>
       ))}
+      {canEdit && (
       <TableCell>
         <div className="flex items-center justify-end gap-1">
           {editing ? (
@@ -381,6 +397,7 @@ function InfluencerRow({
           )}
         </div>
       </TableCell>
+      )}
     </TableRow>
   );
 }

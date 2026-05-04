@@ -1,16 +1,16 @@
 import { NextRequest } from "next/server";
-import { influencersController } from "./influencers.controller";
+import { subredditsController } from "./subreddits.controller";
 import { requireAdmin } from "@/lib/auth/guards";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  return influencersController.handleList(request);
+  return subredditsController.handleList(request);
 }
 
 export async function POST(request: NextRequest) {
   const denied = await requireAdmin(request);
   if (denied) return denied;
-  return influencersController.handleCreate(request);
+  return subredditsController.handleCreate(request);
 }

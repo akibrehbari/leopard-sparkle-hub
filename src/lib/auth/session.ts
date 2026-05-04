@@ -2,17 +2,20 @@
  * Session JWT helpers shared between the auth controller (Node runtime) and
  * the middleware (Edge runtime). Uses `jose` because it works in both.
  *
- * The session payload is intentionally tiny — just a username and an issued-at
- * timestamp — since we only have one admin user. If we ever add per-user
- * data, expand the payload here.
+ * The session payload carries the username and the user's role. Roles are
+ * decided at login time and baked into the JWT so any downstream guard
+ * can authorize without consulting the env again.
  */
 import { jwtVerify, SignJWT } from "jose";
+
+import { isRole, type Role } from "./roles";
 
 export const SESSION_COOKIE = "session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 
 export interface SessionPayload {
   sub: string;
+  role: Role;
   iat: number;
 }
 
@@ -26,8 +29,8 @@ function getSecretKey(): Uint8Array {
   return new TextEncoder().encode(secret);
 }
 
-export async function signSession(username: string): Promise<string> {
-  return new SignJWT({ sub: username })
+export async function signSession(username: string, role: Role): Promise<string> {
+  return new SignJWT({ sub: username, role })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_TTL_SECONDS}s`)
@@ -38,10 +41,14 @@ export async function verifySession(token: string | undefined): Promise<SessionP
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, getSecretKey());
-    if (typeof payload.sub !== "string" || typeof payload.iat !== "number") {
+    if (
+      typeof payload.sub !== "string" ||
+      typeof payload.iat !== "number" ||
+      !isRole(payload.role)
+    ) {
       return null;
     }
-    return { sub: payload.sub, iat: payload.iat };
+    return { sub: payload.sub, role: payload.role, iat: payload.iat };
   } catch {
     return null;
   }

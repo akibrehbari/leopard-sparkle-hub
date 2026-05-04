@@ -5,8 +5,11 @@
  */
 import api from "@/lib/api";
 
+import type { Role } from "./roles";
+
 export interface SessionUser {
   username: string;
+  role: Role;
 }
 
 export interface LoginParams {

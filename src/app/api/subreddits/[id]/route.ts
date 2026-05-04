@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { influencersController } from "../influencers.controller";
+import { subredditsController } from "../subreddits.controller";
 import { requireAdmin } from "@/lib/auth/guards";
 
 export const runtime = "nodejs";
@@ -11,19 +11,19 @@ interface Ctx {
 
 export async function GET(request: NextRequest, ctx: Ctx) {
   const { id } = await ctx.params;
-  return influencersController.handleGet(request, id);
+  return subredditsController.handleGet(request, id);
 }
 
 export async function PATCH(request: NextRequest, ctx: Ctx) {
   const denied = await requireAdmin(request);
   if (denied) return denied;
   const { id } = await ctx.params;
-  return influencersController.handleUpdate(request, id);
+  return subredditsController.handleUpdate(request, id);
 }
 
 export async function DELETE(request: NextRequest, ctx: Ctx) {
   const denied = await requireAdmin(request);
   if (denied) return denied;
   const { id } = await ctx.params;
-  return influencersController.handleDelete(request, id);
+  return subredditsController.handleDelete(request, id);
 }

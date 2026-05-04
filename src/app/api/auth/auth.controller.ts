@@ -1,31 +1,55 @@
 /**
  * Auth controller — login, logout, me.
  *
- * Single-admin model: credentials live in env (ADMIN_USERNAME / ADMIN_PASSWORD).
- * On successful login we sign a JWT (`signSession`) and drop it into an
- * httpOnly cookie that the middleware reads on every request.
+ * Two-tier credentials live in env:
+ *   ADMIN_USERNAME / ADMIN_PASSWORD  — full-privilege account
+ *   EDITOR_USERNAME / EDITOR_PASSWORD — restricted read+entry account (optional)
+ *
+ * On login we walk both credential sets in constant time, decide which (if
+ * any) matched, and stamp the corresponding role into the signed session
+ * JWT. Downstream guards read `session.role` rather than re-checking env.
  */
 import "server-only";
 
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
+
 import {
   SESSION_COOKIE,
   sessionCookieOptions,
   signSession,
   verifySession,
 } from "@/lib/auth/session";
+import type { Role } from "@/lib/auth/roles";
+
+interface CredentialSlot {
+  role: Role;
+  username: string;
+  password: string;
+}
 
 class AuthController {
-  private readEnv() {
-    const username = process.env.ADMIN_USERNAME?.trim();
-    const password = process.env.ADMIN_PASSWORD?.trim();
-    if (!username || !password) {
+  /**
+   * Read every configured credential slot. Admin is always required;
+   * editor is optional (we no-op if its env vars are missing).
+   */
+  private readSlots(): CredentialSlot[] {
+    const slots: CredentialSlot[] = [];
+    const adminUser = process.env.ADMIN_USERNAME?.trim();
+    const adminPass = process.env.ADMIN_PASSWORD?.trim();
+    if (!adminUser || !adminPass) {
       throw new Error(
         "ADMIN_USERNAME and ADMIN_PASSWORD must be set in the environment.",
       );
     }
-    return { username, password };
+    slots.push({ role: "admin", username: adminUser, password: adminPass });
+
+    const editorUser = process.env.EDITOR_USERNAME?.trim();
+    const editorPass = process.env.EDITOR_PASSWORD?.trim();
+    if (editorUser && editorPass) {
+      slots.push({ role: "editor", username: editorUser, password: editorPass });
+    }
+    return slots;
   }
 
   /** Constant-time string compare to dodge timing-side-channel guesses. */
@@ -34,6 +58,25 @@ class AuthController {
     const bBuf = Buffer.from(b);
     if (aBuf.length !== bBuf.length) return false;
     return timingSafeEqual(aBuf, bBuf);
+  }
+
+  /**
+   * Find the slot whose username + password match. We always evaluate every
+   * slot (no short-circuit on first user mismatch) so the response time
+   * doesn't leak which usernames exist.
+   */
+  private match(
+    submittedUser: string,
+    submittedPass: string,
+    slots: CredentialSlot[],
+  ): CredentialSlot | null {
+    let matched: CredentialSlot | null = null;
+    for (const slot of slots) {
+      const userOk = this.safeEqual(submittedUser, slot.username);
+      const passOk = this.safeEqual(submittedPass, slot.password);
+      if (userOk && passOk) matched = slot;
+    }
+    return matched;
   }
 
   async handleLogin(request: NextRequest): Promise<NextResponse> {
@@ -53,9 +96,9 @@ class AuthController {
       );
     }
 
-    let expected: { username: string; password: string };
+    let slots: CredentialSlot[];
     try {
-      expected = this.readEnv();
+      slots = this.readSlots();
     } catch (err) {
       console.error("[auth] env misconfigured", err);
       return NextResponse.json(
@@ -64,14 +107,15 @@ class AuthController {
       );
     }
 
-    const userOk = this.safeEqual(submittedUser, expected.username);
-    const passOk = this.safeEqual(submittedPass, expected.password);
-    if (!userOk || !passOk) {
+    const matched = this.match(submittedUser, submittedPass, slots);
+    if (!matched) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
-    const token = await signSession(expected.username);
-    const res = NextResponse.json({ user: { username: expected.username } });
+    const token = await signSession(matched.username, matched.role);
+    const res = NextResponse.json({
+      user: { username: matched.username, role: matched.role },
+    });
     res.cookies.set(SESSION_COOKIE, token, sessionCookieOptions);
     return res;
   }
@@ -88,7 +132,9 @@ class AuthController {
     if (!session) {
       return NextResponse.json({ user: null }, { status: 401 });
     }
-    return NextResponse.json({ user: { username: session.sub } });
+    return NextResponse.json({
+      user: { username: session.sub, role: session.role },
+    });
   }
 }
 

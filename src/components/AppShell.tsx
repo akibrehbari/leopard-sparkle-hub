@@ -24,6 +24,7 @@ import {
   Layers,
   ListChecks,
   LogOut,
+  MessagesSquare,
   Plus,
   Users,
 } from "lucide-react";
@@ -99,6 +100,12 @@ function SidebarBody() {
           icon={Users}
           label="Influencers"
           active={pathname.startsWith("/influencers")}
+        />
+        <NavRow
+          href="/subreddits"
+          icon={MessagesSquare}
+          label="Subreddits"
+          active={pathname.startsWith("/subreddits")}
         />
         <NavRow
           href="/tracker"

@@ -16,14 +16,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth/session";
 
-const PUBLIC_PATHS = ["/login"];
+const PUBLIC_PATHS = ["/login", "/share"];
 /**
  * Path prefixes that bypass auth.
  *
- * `/share/` (page) and `/api/share/` (data) are intentionally public — anyone
- * with the unguessable influencer ID in the URL can view a read-only snapshot
- * of that influencer's dashboard. The MongoDB ObjectId provides ~96 bits of
- * entropy, which is treated as a bearer token here.
+ * `/share` (page, single + multi model) and `/api/share/` (data) are
+ * intentionally public — anyone with the unguessable influencer ID(s) in
+ * the URL can view a read-only snapshot of that influencer's dashboard. A
+ * MongoDB ObjectId provides ~96 bits of entropy, which is treated as a
+ * bearer token here.
+ *
+ * NOTE: `/share` (no trailing slash) is matched via PUBLIC_PATHS above so
+ * the new `?ids=&selected=&range=` route works; `/share/<id>` still flows
+ * through the prefix below.
  */
 const PUBLIC_PREFIXES = ["/share/", "/api/share/", "/api/auth/"];
 
