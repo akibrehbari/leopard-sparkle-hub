@@ -2,21 +2,21 @@
  * Mongoose model for the `influencers` collection.
  *
  * Schema notes:
- *   - All influencers are created manually now (the Infloww sync was removed).
+ *   - All influencers are created manually.
  *   - `handles` is an embedded sub-document with one optional string per
  *     platform key. Empty / missing means the influencer doesn't have an
  *     account on that platform; the dashboard still renders the section so
  *     the operator can enter weekly data when they do.
- *   - Existing documents in production may still carry deprecated keys
- *     (`inflowwCreatorId`, `inflowwUserName`, `isManual`). They're harmless
- *     leftovers — the model just stops reading them. Drop the fields out of
- *     band if you want a clean collection.
+ *   - `agencyId` is the tenant boundary — every influencer belongs to
+ *     exactly one agency, set at create time and immutable thereafter.
+ *     All list/read endpoints filter by it.
  */
 import "server-only";
 import mongoose, { Schema } from "mongoose";
 
 export interface InfluencerDoc {
   _id: mongoose.Types.ObjectId;
+  agencyId: mongoose.Types.ObjectId;
   name: string;
   handles: {
     reddit?: string | null;
@@ -30,6 +30,12 @@ export interface InfluencerDoc {
 
 const InfluencerSchema = new Schema<InfluencerDoc>(
   {
+    agencyId: {
+      type: Schema.Types.ObjectId,
+      ref: "Agency",
+      required: true,
+      index: true,
+    },
     name: { type: String, required: true, trim: true },
     handles: {
       reddit: { type: String, default: null, trim: true },

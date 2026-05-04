@@ -1,18 +1,27 @@
 /**
  * Auth controller — login, logout, me.
  *
- * Two-tier credentials live in env:
- *   ADMIN_USERNAME / ADMIN_PASSWORD  — full-privilege account
- *   EDITOR_USERNAME / EDITOR_PASSWORD — restricted read+entry account (optional)
+ * Three credential sources walked at login time:
  *
- * On login we walk both credential sets in constant time, decide which (if
- * any) matched, and stamp the corresponding role into the signed session
- * JWT. Downstream guards read `session.role` rather than re-checking env.
+ *   1. ADMIN_USERNAME / ADMIN_PASSWORD                — env, full-access role.
+ *   2. EDITOR_USERNAME / EDITOR_PASSWORD              — env, restricted writer.
+ *   3. agencies.ownerUsername / .ownerPasswordHash    — DB, agency_owner role.
+ *
+ * Walk order is "all of them, every time" so that:
+ *   - timing doesn't leak which usernames exist (env env vs DB miss vs DB hit
+ *     all take roughly the same wall-clock time thanks to bcrypt dominating);
+ *   - duplicate usernames across sources just produce no match (the first
+ *     credential set whose username matches but password doesn't loses).
+ *
+ * Once we identify which credential matched, we sign the JWT with the
+ * appropriate role and (for agency owners) the bound `agencyId`. Downstream
+ * guards read `session.role` rather than re-checking env or DB.
  */
 import "server-only";
 
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
+import bcrypt from "bcryptjs";
 
 import {
   SESSION_COOKIE,
@@ -21,20 +30,29 @@ import {
   verifySession,
 } from "@/lib/auth/session";
 import type { Role } from "@/lib/auth/roles";
+import { connectMongo } from "@/lib/db/mongo";
+import { AgencyModel, type AgencyDoc } from "@/app/api/agencies/agencies.model";
 
-interface CredentialSlot {
-  role: Role;
+interface EnvCredentialSlot {
+  kind: "env";
+  role: Exclude<Role, "agency_owner">;
   username: string;
   password: string;
 }
 
+interface MatchedSlot {
+  role: Role;
+  username: string;
+  agencyId?: string;
+}
+
 class AuthController {
   /**
-   * Read every configured credential slot. Admin is always required;
-   * editor is optional (we no-op if its env vars are missing).
+   * Read every configured env credential slot. Admin is required; editor is
+   * optional (we no-op if its env vars are missing).
    */
-  private readSlots(): CredentialSlot[] {
-    const slots: CredentialSlot[] = [];
+  private readEnvSlots(): EnvCredentialSlot[] {
+    const slots: EnvCredentialSlot[] = [];
     const adminUser = process.env.ADMIN_USERNAME?.trim();
     const adminPass = process.env.ADMIN_PASSWORD?.trim();
     if (!adminUser || !adminPass) {
@@ -42,12 +60,17 @@ class AuthController {
         "ADMIN_USERNAME and ADMIN_PASSWORD must be set in the environment.",
       );
     }
-    slots.push({ role: "admin", username: adminUser, password: adminPass });
+    slots.push({ kind: "env", role: "admin", username: adminUser, password: adminPass });
 
     const editorUser = process.env.EDITOR_USERNAME?.trim();
     const editorPass = process.env.EDITOR_PASSWORD?.trim();
     if (editorUser && editorPass) {
-      slots.push({ role: "editor", username: editorUser, password: editorPass });
+      slots.push({
+        kind: "env",
+        role: "editor",
+        username: editorUser,
+        password: editorPass,
+      });
     }
     return slots;
   }
@@ -61,22 +84,51 @@ class AuthController {
   }
 
   /**
-   * Find the slot whose username + password match. We always evaluate every
-   * slot (no short-circuit on first user mismatch) so the response time
-   * doesn't leak which usernames exist.
+   * Find the first env slot whose username + password match. We always
+   * evaluate every slot (no short-circuit on first user mismatch) so the
+   * response time doesn't leak which usernames exist.
    */
-  private match(
+  private matchEnv(
     submittedUser: string,
     submittedPass: string,
-    slots: CredentialSlot[],
-  ): CredentialSlot | null {
-    let matched: CredentialSlot | null = null;
+    slots: EnvCredentialSlot[],
+  ): EnvCredentialSlot | null {
+    let matched: EnvCredentialSlot | null = null;
     for (const slot of slots) {
       const userOk = this.safeEqual(submittedUser, slot.username);
       const passOk = this.safeEqual(submittedPass, slot.password);
       if (userOk && passOk) matched = slot;
     }
     return matched;
+  }
+
+  /**
+   * Look up an agency by ownerUsername and bcrypt-compare the password.
+   *
+   * Why a query instead of "load all and compare"? Bcrypt is intentionally
+   * expensive (~100ms each); doing N comparisons per login would scale
+   * terribly. The single indexed lookup leaks at most "is this username
+   * registered as an agency owner" via timing — exactly the same bit any
+   * username-based system leaks.
+   */
+  private async matchAgency(
+    submittedUser: string,
+    submittedPass: string,
+  ): Promise<AgencyDoc | null> {
+    const lookup = submittedUser.toLowerCase();
+    await connectMongo();
+    const doc = await AgencyModel.findOne({ ownerUsername: lookup }).lean<AgencyDoc>();
+    if (!doc) {
+      // Run a dummy bcrypt compare so timing doesn't betray "user not found"
+      // vs "user found, wrong password". The hash is a known throwaway.
+      await bcrypt.compare(
+        submittedPass,
+        "$2a$10$CwTycUXWue0Thq9StjUM0uJ8.J8rbpQk6cQpjpKkR2QvUnr/V2cha",
+      );
+      return null;
+    }
+    const ok = await bcrypt.compare(submittedPass, doc.ownerPasswordHash);
+    return ok ? doc : null;
   }
 
   async handleLogin(request: NextRequest): Promise<NextResponse> {
@@ -96,9 +148,9 @@ class AuthController {
       );
     }
 
-    let slots: CredentialSlot[];
+    let envSlots: EnvCredentialSlot[];
     try {
-      slots = this.readSlots();
+      envSlots = this.readEnvSlots();
     } catch (err) {
       console.error("[auth] env misconfigured", err);
       return NextResponse.json(
@@ -107,14 +159,39 @@ class AuthController {
       );
     }
 
-    const matched = this.match(submittedUser, submittedPass, slots);
+    // Walk env first (cheap), then DB (bcrypt). Always do the DB call so an
+    // attacker can't tell from response time whether their guess hit env.
+    const envHit = this.matchEnv(submittedUser, submittedPass, envSlots);
+    let dbHit: AgencyDoc | null = null;
+    try {
+      dbHit = await this.matchAgency(submittedUser, submittedPass);
+    } catch (err) {
+      console.error("[auth] agency lookup failed", err);
+      // Don't leak DB failure as 500 — fall through and treat as no DB match.
+    }
+
+    let matched: MatchedSlot | null = null;
+    if (envHit) {
+      matched = { role: envHit.role, username: envHit.username };
+    } else if (dbHit) {
+      matched = {
+        role: "agency_owner",
+        username: dbHit.ownerUsername,
+        agencyId: dbHit._id.toString(),
+      };
+    }
+
     if (!matched) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
-    const token = await signSession(matched.username, matched.role);
+    const token = await signSession(matched.username, matched.role, matched.agencyId);
     const res = NextResponse.json({
-      user: { username: matched.username, role: matched.role },
+      user: {
+        username: matched.username,
+        role: matched.role,
+        ...(matched.agencyId ? { agencyId: matched.agencyId } : {}),
+      },
     });
     res.cookies.set(SESSION_COOKIE, token, sessionCookieOptions);
     return res;
@@ -133,7 +210,11 @@ class AuthController {
       return NextResponse.json({ user: null }, { status: 401 });
     }
     return NextResponse.json({
-      user: { username: session.sub, role: session.role },
+      user: {
+        username: session.sub,
+        role: session.role,
+        ...(session.agencyId ? { agencyId: session.agencyId } : {}),
+      },
     });
   }
 }

@@ -1,5 +1,7 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { subredditsController } from "../subreddits.controller";
+import { requireEditorOrAdmin } from "@/lib/auth/guards";
+import { resolveAgencyContext } from "@/lib/tenancy/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,5 +11,9 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
-  return subredditsController.handleSyncAll(request);
+  const denied = await requireEditorOrAdmin(request);
+  if (denied) return denied;
+  const ctx = await resolveAgencyContext(request);
+  if (ctx instanceof NextResponse) return ctx;
+  return subredditsController.handleSyncAll(request, ctx.agencyId);
 }

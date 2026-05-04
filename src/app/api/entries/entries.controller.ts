@@ -7,6 +7,11 @@
  *   - Get one (influencerId + platform + weekKey) — used to prefill the form.
  *   - Upsert — idempotent create-or-update keyed on the unique compound index.
  *   - Delete — clears a single (influencer, platform, week) entry.
+ *
+ * Tenant-scoped: every read filters by `agencyId`. Every write also verifies
+ * the target influencer actually belongs to the active agency before
+ * persisting; otherwise an editor on agency A could enter data for an
+ * influencer on agency B by guessing the id.
  */
 import "server-only";
 
@@ -14,6 +19,7 @@ import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { connectMongo } from "@/lib/db/mongo";
 import { WeeklyEntryModel, type WeeklyEntryDoc } from "./entries.model";
+import { InfluencerModel } from "@/app/api/influencers/influencers.model";
 import {
   isValidPlatform,
   validateEntryData,
@@ -51,12 +57,35 @@ class EntriesController {
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 
+  /**
+   * Resolve influencer ownership: returns true iff `influencerId` exists and
+   * belongs to `agencyId`. We do this with a tiny `exists` query rather than
+   * loading the full doc.
+   */
+  private async influencerInAgency(
+    influencerId: string,
+    agencyId: string,
+  ): Promise<boolean> {
+    if (!mongoose.isValidObjectId(influencerId)) return false;
+    return Boolean(
+      await InfluencerModel.exists({
+        _id: influencerId,
+        agencyId: new mongoose.Types.ObjectId(agencyId),
+      }),
+    );
+  }
+
   /* ---------------------------------------------------------------------- */
 
-  async handleList(request: NextRequest): Promise<NextResponse> {
+  async handleList(
+    request: NextRequest,
+    agencyId: string,
+  ): Promise<NextResponse> {
     try {
       const sp = new URL(request.url).searchParams;
-      const filter: Record<string, unknown> = {};
+      const filter: Record<string, unknown> = {
+        agencyId: new mongoose.Types.ObjectId(agencyId),
+      };
 
       const influencerId = sp.get("influencerId");
       if (influencerId) {
@@ -96,7 +125,10 @@ class EntriesController {
     }
   }
 
-  async handleUpsert(request: NextRequest): Promise<NextResponse> {
+  async handleUpsert(
+    request: NextRequest,
+    agencyId: string,
+  ): Promise<NextResponse> {
     try {
       const body = (await request.json()) as UpsertEntryBody;
 
@@ -116,19 +148,30 @@ class EntriesController {
         );
       }
 
+      await connectMongo();
+      if (!(await this.influencerInAgency(body.influencerId, agencyId))) {
+        return NextResponse.json(
+          { error: "Influencer does not belong to the active agency" },
+          { status: 404 },
+        );
+      }
+
       const validation = validateEntryData(body.platform, body.data);
       if (validation.ok === false) {
         return NextResponse.json({ error: validation.error }, { status: 400 });
       }
 
-      await connectMongo();
+      const agencyObjId = new mongoose.Types.ObjectId(agencyId);
       const doc = await WeeklyEntryModel.findOneAndUpdate(
         {
           influencerId: new mongoose.Types.ObjectId(body.influencerId),
           platform: body.platform,
           weekKey: body.weekKey,
         },
-        { $set: { data: validation.data } },
+        {
+          $set: { data: validation.data },
+          $setOnInsert: { agencyId: agencyObjId },
+        },
         { new: true, upsert: true, setDefaultsOnInsert: true },
       ).lean<WeeklyEntryDoc>();
 
@@ -141,7 +184,10 @@ class EntriesController {
     }
   }
 
-  async handleDelete(request: NextRequest): Promise<NextResponse> {
+  async handleDelete(
+    request: NextRequest,
+    agencyId: string,
+  ): Promise<NextResponse> {
     try {
       const sp = new URL(request.url).searchParams;
       const influencerId = sp.get("influencerId");
@@ -160,6 +206,7 @@ class EntriesController {
 
       await connectMongo();
       const res = await WeeklyEntryModel.findOneAndDelete({
+        agencyId: new mongoose.Types.ObjectId(agencyId),
         influencerId: new mongoose.Types.ObjectId(influencerId),
         platform,
         weekKey,

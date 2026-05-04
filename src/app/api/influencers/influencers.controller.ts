@@ -2,8 +2,11 @@
  * Influencers controller.
  *
  * Owns CRUD on the influencers collection. All influencers are created
- * manually (the Infloww sync was removed when the API integration was
- * deleted); per-platform handles are pure strings the operator types in.
+ * manually; per-platform handles are pure strings the operator types in.
+ *
+ * Tenant-scoped: every read filters by `agencyId`, every write stamps it.
+ * The route handler resolves the active agency via `resolveAgencyContext`
+ * (cookie for admin/editor, JWT-bound for agency_owner) and passes it in.
  */
 import "server-only";
 
@@ -60,23 +63,34 @@ class InfluencersController {
 
   /* ---------------------------------------------------------------------- */
 
-  async handleList(_request: NextRequest): Promise<NextResponse> {
+  async handleList(_request: NextRequest, agencyId: string): Promise<NextResponse> {
     try {
       await connectMongo();
-      const docs = await InfluencerModel.find({}).sort({ name: 1 }).lean<InfluencerDoc[]>();
+      const docs = await InfluencerModel.find({
+        agencyId: new mongoose.Types.ObjectId(agencyId),
+      })
+        .sort({ name: 1 })
+        .lean<InfluencerDoc[]>();
       return NextResponse.json({ data: docs.map((d) => this.toJson(d)) });
     } catch (err) {
       return this.errorResponse(err);
     }
   }
 
-  async handleGet(_request: NextRequest, id: string): Promise<NextResponse> {
+  async handleGet(
+    _request: NextRequest,
+    id: string,
+    agencyId: string,
+  ): Promise<NextResponse> {
     try {
       if (!mongoose.isValidObjectId(id)) {
         return NextResponse.json({ error: "Invalid id" }, { status: 400 });
       }
       await connectMongo();
-      const doc = await InfluencerModel.findById(id).lean<InfluencerDoc>();
+      const doc = await InfluencerModel.findOne({
+        _id: id,
+        agencyId: new mongoose.Types.ObjectId(agencyId),
+      }).lean<InfluencerDoc>();
       if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
       return NextResponse.json({ data: this.toJson(doc) });
     } catch (err) {
@@ -84,7 +98,10 @@ class InfluencersController {
     }
   }
 
-  async handleCreate(request: NextRequest): Promise<NextResponse> {
+  async handleCreate(
+    request: NextRequest,
+    agencyId: string,
+  ): Promise<NextResponse> {
     try {
       const body = (await request.json()) as CreateInfluencerBody;
       const name = body?.name?.trim();
@@ -93,6 +110,7 @@ class InfluencersController {
       }
       await connectMongo();
       const doc = await InfluencerModel.create({
+        agencyId: new mongoose.Types.ObjectId(agencyId),
         name,
         handles: this.sanitizeHandles(body.handles),
       });
@@ -105,7 +123,11 @@ class InfluencersController {
     }
   }
 
-  async handleUpdate(request: NextRequest, id: string): Promise<NextResponse> {
+  async handleUpdate(
+    request: NextRequest,
+    id: string,
+    agencyId: string,
+  ): Promise<NextResponse> {
     try {
       if (!mongoose.isValidObjectId(id)) {
         return NextResponse.json({ error: "Invalid id" }, { status: 400 });
@@ -125,10 +147,13 @@ class InfluencersController {
         return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
       }
       await connectMongo();
-      const doc = await InfluencerModel.findByIdAndUpdate(id, update, {
-        new: true,
-        runValidators: true,
-      }).lean<InfluencerDoc>();
+      // Scope the update by agencyId so a guess at another agency's
+      // influencer id can't slip through as a 200.
+      const doc = await InfluencerModel.findOneAndUpdate(
+        { _id: id, agencyId: new mongoose.Types.ObjectId(agencyId) },
+        update,
+        { new: true, runValidators: true },
+      ).lean<InfluencerDoc>();
       if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
       return NextResponse.json({ data: this.toJson(doc) });
     } catch (err) {
@@ -136,13 +161,20 @@ class InfluencersController {
     }
   }
 
-  async handleDelete(_request: NextRequest, id: string): Promise<NextResponse> {
+  async handleDelete(
+    _request: NextRequest,
+    id: string,
+    agencyId: string,
+  ): Promise<NextResponse> {
     try {
       if (!mongoose.isValidObjectId(id)) {
         return NextResponse.json({ error: "Invalid id" }, { status: 400 });
       }
       await connectMongo();
-      const res = await InfluencerModel.findByIdAndDelete(id);
+      const res = await InfluencerModel.findOneAndDelete({
+        _id: id,
+        agencyId: new mongoose.Types.ObjectId(agencyId),
+      });
       if (!res) return NextResponse.json({ error: "Not found" }, { status: 404 });
       return NextResponse.json({ ok: true });
     } catch (err) {

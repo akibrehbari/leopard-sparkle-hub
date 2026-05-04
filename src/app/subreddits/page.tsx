@@ -23,7 +23,7 @@ import { SubredditTable } from "@/components/subreddits/SubredditTable";
 import { SyncSubredditsButton } from "@/components/subreddits/SyncSubredditsButton";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSession } from "@/lib/auth/auth.hooks";
-import { isAdmin } from "@/lib/auth/roles";
+import { isAdmin, isEditorOrAdmin } from "@/lib/auth/roles";
 import { useInfluencers } from "@/lib/influencers/influencers.hooks";
 import { useSubreddits } from "@/lib/subreddits/subreddits.hooks";
 
@@ -32,6 +32,7 @@ export default function SubredditsPage() {
   const { data: influencers } = useInfluencers();
   const { data: session } = useSession();
   const canEdit = isAdmin(session?.role);
+  const canSync = isEditorOrAdmin(session?.role);
   const [filters, setFilters] = useState<SubredditFilterDraft>(EMPTY_FILTERS);
 
   const filtered = useMemo(
@@ -52,7 +53,7 @@ export default function SubredditsPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <SyncSubredditsButton />
+            {canSync && <SyncSubredditsButton />}
             {canEdit && <AddSubredditDialog />}
           </div>
         </header>

@@ -49,6 +49,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useInfluencers } from "@/lib/influencers/influencers.hooks";
 import { useEntries } from "@/lib/entries/entries.hooks";
 import { useSubreddits } from "@/lib/subreddits/subreddits.hooks";
+import { useSession } from "@/lib/auth/auth.hooks";
+import { isEditorOrAdmin } from "@/lib/auth/roles";
 import {
   ACQUISITION_PLATFORM_KEYS,
   PLATFORMS,
@@ -98,6 +100,11 @@ function DashboardContent() {
 
   const influencersQ = useInfluencers();
   const influencers = influencersQ.data ?? [];
+
+  const { data: session } = useSession();
+  // Agency owners are read-only — they should see the same dashboard
+  // sections as everyone else, but without the per-week edit controls.
+  const readOnly = !isEditorOrAdmin(session?.role);
 
   const isAggregate = selectedId === "all";
   const selectedInfluencer = isAggregate
@@ -219,7 +226,10 @@ function DashboardContent() {
         <>
           <section className="mb-8">
             <PlatformBadge platform="onlyfans" />
-            <OnlyFansAttributionSection influencer={selectedInfluencer} />
+            <OnlyFansAttributionSection
+              influencer={selectedInfluencer}
+              readOnly={readOnly}
+            />
           </section>
 
           <section className="mb-8">
@@ -227,6 +237,7 @@ function DashboardContent() {
             <PlatformSection
               influencer={selectedInfluencer}
               platform="reddit"
+              readOnly={readOnly}
             />
           </section>
 
@@ -235,6 +246,7 @@ function DashboardContent() {
             <PlatformSection
               influencer={selectedInfluencer}
               platform="instagram"
+              readOnly={readOnly}
             />
           </section>
 
@@ -243,6 +255,7 @@ function DashboardContent() {
             <PlatformSection
               influencer={selectedInfluencer}
               platform="x"
+              readOnly={readOnly}
             />
           </section>
 

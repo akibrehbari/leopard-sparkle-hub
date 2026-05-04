@@ -1,17 +1,29 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { entriesController } from "./entries.controller";
+import { requireEditorOrAdmin } from "@/lib/auth/guards";
+import { resolveAgencyContext } from "@/lib/tenancy/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  return entriesController.handleList(request);
+  const ctx = await resolveAgencyContext(request);
+  if (ctx instanceof NextResponse) return ctx;
+  return entriesController.handleList(request, ctx.agencyId);
 }
 
 export async function PUT(request: NextRequest) {
-  return entriesController.handleUpsert(request);
+  const denied = await requireEditorOrAdmin(request);
+  if (denied) return denied;
+  const ctx = await resolveAgencyContext(request);
+  if (ctx instanceof NextResponse) return ctx;
+  return entriesController.handleUpsert(request, ctx.agencyId);
 }
 
 export async function DELETE(request: NextRequest) {
-  return entriesController.handleDelete(request);
+  const denied = await requireEditorOrAdmin(request);
+  if (denied) return denied;
+  const ctx = await resolveAgencyContext(request);
+  if (ctx instanceof NextResponse) return ctx;
+  return entriesController.handleDelete(request, ctx.agencyId);
 }

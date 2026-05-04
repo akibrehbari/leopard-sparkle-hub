@@ -36,7 +36,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { useSession } from "@/lib/auth/auth.hooks";
-import { isAdmin } from "@/lib/auth/roles";
+import { isAdmin, isEditorOrAdmin } from "@/lib/auth/roles";
 import { useInfluencers } from "@/lib/influencers/influencers.hooks";
 import { categoryLabel } from "@/lib/subreddits/categories";
 import {
@@ -97,10 +97,11 @@ export function SubredditTable({
 
   const { data: session } = useSession();
   // Editors keep the per-row "re-sync" action (they can sync subreddits) but
-  // lose Edit and Delete. `readOnly` from the parent (e.g. share page) hides
-  // every action regardless of role.
+  // lose Edit and Delete. Agency owners are read-only — they don't get sync
+  // either. `readOnly` from the parent (e.g. share page) hides every action
+  // regardless of role.
   const canEdit = !readOnly && isAdmin(session?.role);
-  const canResync = !readOnly;
+  const canResync = !readOnly && isEditorOrAdmin(session?.role);
   const showActionsColumn = canEdit || canResync;
 
   // Skip the auth-protected /api/influencers call when the parent has

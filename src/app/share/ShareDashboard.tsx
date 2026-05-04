@@ -3,11 +3,14 @@
 /**
  * Read-only renderer for `/share?ids=...&selected=...&range=...`.
  *
- * Mirrors `views/Index.tsx`'s 4-section layout (OnlyFans → Reddit → IG → X)
- * but consumes a server-prefetched `SharePayload`. The dashboard widgets
- * accept `prefetchedEntries` + `readOnly` so the page works without any
- * client-side data fetching, without auth, and without exposing the entry
- * forms.
+ * Renders growth-only dashboards: Reddit → Instagram → X → linked subreddits.
+ * OnlyFans (revenue) is intentionally absent — share links carry public-
+ * friendly stats only and the server strips OF data before it ever reaches
+ * this component.
+ *
+ * Consumes a server-prefetched `SharePayload`. The dashboard widgets accept
+ * `prefetchedEntries` + `readOnly` so the page works without any client-side
+ * data fetching, without auth, and without exposing the entry forms.
  *
  * The topbar exposes a model switcher dropdown when `roster.length > 1`.
  * Switching models navigates to a new URL with the same `ids` and `range`
@@ -21,7 +24,6 @@ import { Download, Loader2, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ModelOverview } from "@/components/dashboard/ModelOverview";
-import { OnlyFansAttributionSection } from "@/components/dashboard/OnlyFansAttributionSection";
 import { PlatformBadge } from "@/components/dashboard/PlatformBadge";
 import { PlatformSection } from "@/components/dashboard/PlatformSection";
 import { ShareSwitcher } from "@/components/dashboard/ShareSwitcher";
@@ -99,47 +101,44 @@ export function ShareDashboard({ payload }: Props) {
           <ModelOverview influencer={influencer} />
         </div>
 
-        <section className="mb-8">
-          <PlatformBadge platform="onlyfans" />
-          <OnlyFansAttributionSection
-            influencer={influencer}
-            prefetchedEntries={entries.onlyfans ?? []}
-            readOnly
-          />
-        </section>
+        {platforms.reddit && (
+          <section className="mb-8">
+            <PlatformBadge platform="reddit" />
+            <PlatformSection
+              influencer={influencer}
+              platform="reddit"
+              prefetchedEntries={entries.reddit ?? []}
+              prefetchedPlatform={platforms.reddit}
+              readOnly
+            />
+          </section>
+        )}
 
-        <section className="mb-8">
-          <PlatformBadge platform="reddit" />
-          <PlatformSection
-            influencer={influencer}
-            platform="reddit"
-            prefetchedEntries={entries.reddit ?? []}
-            prefetchedPlatform={platforms.reddit}
-            readOnly
-          />
-        </section>
+        {platforms.instagram && (
+          <section className="mb-8">
+            <PlatformBadge platform="instagram" />
+            <PlatformSection
+              influencer={influencer}
+              platform="instagram"
+              prefetchedEntries={entries.instagram ?? []}
+              prefetchedPlatform={platforms.instagram}
+              readOnly
+            />
+          </section>
+        )}
 
-        <section className="mb-8">
-          <PlatformBadge platform="instagram" />
-          <PlatformSection
-            influencer={influencer}
-            platform="instagram"
-            prefetchedEntries={entries.instagram ?? []}
-            prefetchedPlatform={platforms.instagram}
-            readOnly
-          />
-        </section>
-
-        <section className="mb-8">
-          <PlatformBadge platform="x" />
-          <PlatformSection
-            influencer={influencer}
-            platform="x"
-            prefetchedEntries={entries.x ?? []}
-            prefetchedPlatform={platforms.x}
-            readOnly
-          />
-        </section>
+        {platforms.x && (
+          <section className="mb-8">
+            <PlatformBadge platform="x" />
+            <PlatformSection
+              influencer={influencer}
+              platform="x"
+              prefetchedEntries={entries.x ?? []}
+              prefetchedPlatform={platforms.x}
+              readOnly
+            />
+          </section>
+        )}
 
         <section className="mb-8">
           <PlatformBadge platform="reddit" suffix="subreddits" />

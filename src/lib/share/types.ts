@@ -24,9 +24,18 @@ export interface SharePayload {
   range: DashboardRange;
   /** Inclusive ISO timestamps describing the range window for display. */
   window: { startISO: string; endISO: string };
-  /** One pre-filtered list per platform key. Empty arrays when no data. */
+  /**
+   * One pre-filtered list per platform key. Empty arrays when no data.
+   *
+   * Share links are growth-only — OnlyFans entries are deliberately omitted
+   * by the server so revenue/spend never appears in shared dashboards.
+   */
   entries: Partial<Record<PlatformKey, WeeklyEntry[]>>;
-  platforms: Record<PlatformKey, PlatformDefinition>;
+  /**
+   * Platform definitions included in this share. Will only contain growth
+   * platforms (reddit, instagram, x); OnlyFans is intentionally absent.
+   */
+  platforms: Partial<Record<PlatformKey, PlatformDefinition>>;
   /**
    * Roster of all influencers reachable from this share link.
    * Always contains at least `influencer` itself. Used to render the

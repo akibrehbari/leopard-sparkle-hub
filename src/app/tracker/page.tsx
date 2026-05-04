@@ -15,7 +15,7 @@
  */
 
 import { useMemo, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, ShieldAlert } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useInfluencers } from "@/lib/influencers/influencers.hooks";
 import { useEntries } from "@/lib/entries/entries.hooks";
 import { usePlatforms } from "@/lib/platforms/platforms.hooks";
+import { useSession } from "@/lib/auth/auth.hooks";
+import { isEditorOrAdmin } from "@/lib/auth/roles";
 import { EntryFormModal } from "@/components/entries/EntryFormModal";
 import { currentWeekKey, lastNWeeks, weekShortLabel, parseWeekKey } from "@/lib/utils/week";
 import { PLATFORM_KEYS, type PlatformKey } from "@/lib/platforms/registry";
@@ -47,8 +49,42 @@ export default function TrackerPage() {
   const [search, setSearch] = useState("");
   const [openForm, setOpenForm] = useState<OpenForm | null>(null);
 
+  const { data: session, isLoading: sessionLoading } = useSession();
+  const allowed = isEditorOrAdmin(session?.role);
+
   const { data: platforms } = usePlatforms();
-  const { data: influencers, isLoading: infLoading } = useInfluencers();
+  const { data: influencers, isLoading: infLoading } = useInfluencers({
+    enabled: allowed,
+  });
+
+  if (sessionLoading) {
+    return (
+      <AppShell>
+        <div className="px-6 py-6 max-w-6xl">
+          <Skeleton className="h-8 w-48" />
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (!allowed) {
+    return (
+      <AppShell>
+        <div className="px-6 py-12 max-w-2xl mx-auto">
+          <div className="card-surface rounded-xl p-8 text-center">
+            <div className="mx-auto size-12 rounded-full bg-destructive/10 grid place-items-center mb-4">
+              <ShieldAlert className="size-5 text-destructive" />
+            </div>
+            <h1 className="text-lg font-semibold mb-1">Read-only role</h1>
+            <p className="text-sm text-muted-foreground">
+              The weekly tracker is for entering data. Your role can view
+              dashboards but not modify weekly entries.
+            </p>
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
 
   const weekKeys = useMemo(() => lastNWeeks(Number(weeksBack)), [weeksBack]);
 

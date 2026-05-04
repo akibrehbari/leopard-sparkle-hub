@@ -6,6 +6,11 @@
  * `subreddit_snapshots`. The list endpoint also pre-joins the latest two
  * snapshots so the UI table can render subscribers + weekly delta in a
  * single round-trip.
+ *
+ * Tenant-scoped: every read filters by `agencyId`, every write stamps it,
+ * and the unique key on subreddit names is `(agencyId, name)` rather than
+ * `name` alone — two different agencies can independently track the same
+ * subreddit without colliding.
  */
 import "server-only";
 
@@ -20,6 +25,7 @@ import {
   type SubredditSnapshotDoc,
   type SubredditTopPost,
 } from "./subreddits.model";
+import { InfluencerModel } from "@/app/api/influencers/influencers.model";
 import {
   fetchSubredditAbout,
   fetchSubredditDigest,
@@ -88,9 +94,12 @@ class SubredditsController {
   /*  List + lookup                                                         */
   /* ---------------------------------------------------------------------- */
 
-  async handleList(_request: NextRequest): Promise<NextResponse> {
+  async handleList(
+    _request: NextRequest,
+    agencyId: string,
+  ): Promise<NextResponse> {
     try {
-      const data = await this.fetchListWithLatest({});
+      const data = await this.fetchListWithLatest({ agencyId });
       return NextResponse.json({ data });
     } catch (err) {
       return this.errorResponse(err);
@@ -99,20 +108,22 @@ class SubredditsController {
 
   /**
    * List subreddits joined with their latest two snapshots and a computed
-   * weekly delta. Reused by the share controller — when no `filter` is
-   * passed, returns every subreddit (matches `handleList`); when
-   * `filter.influencerIds` is set, narrows to subreddits owned by those
-   * influencers.
+   * weekly delta. Reused by the share controller.
    *
-   * Single Mongo round-trip for snapshots regardless of how many subreddits
-   * are returned, courtesy of the $group + $slice aggregation.
+   * `agencyId` is always required — there's no global, cross-tenant view.
+   * `influencerIds` further narrows to subreddits owned by those influencers
+   * (used by the share endpoint to materialize a share roster).
    */
   async fetchListWithLatest(filter: {
+    agencyId: string;
     influencerIds?: string[];
   }): Promise<SubredditWithLatest[]> {
+    if (!mongoose.isValidObjectId(filter.agencyId)) return [];
     await connectMongo();
 
-    const query: Record<string, unknown> = {};
+    const query: Record<string, unknown> = {
+      agencyId: new mongoose.Types.ObjectId(filter.agencyId),
+    };
     if (filter.influencerIds) {
       const ids = filter.influencerIds
         .filter((id) => mongoose.isValidObjectId(id))
@@ -162,13 +173,20 @@ class SubredditsController {
     });
   }
 
-  async handleGet(_request: NextRequest, id: string): Promise<NextResponse> {
+  async handleGet(
+    _request: NextRequest,
+    id: string,
+    agencyId: string,
+  ): Promise<NextResponse> {
     try {
       if (!mongoose.isValidObjectId(id)) {
         return NextResponse.json({ error: "Invalid id" }, { status: 400 });
       }
       await connectMongo();
-      const doc = await SubredditModel.findById(id).lean<SubredditDoc>();
+      const doc = await SubredditModel.findOne({
+        _id: id,
+        agencyId: new mongoose.Types.ObjectId(agencyId),
+      }).lean<SubredditDoc>();
       if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
       return NextResponse.json({ data: this.toJson(doc) });
     } catch (err) {
@@ -180,7 +198,10 @@ class SubredditsController {
   /*  Create                                                                */
   /* ---------------------------------------------------------------------- */
 
-  async handleCreate(request: NextRequest): Promise<NextResponse> {
+  async handleCreate(
+    request: NextRequest,
+    agencyId: string,
+  ): Promise<NextResponse> {
     try {
       const body = (await request.json()) as CreateSubredditBody;
       const name = normalizeSubredditName(body?.name ?? "");
@@ -199,6 +220,7 @@ class SubredditsController {
           { status: 400 },
         );
       }
+      const agencyObjId = new mongoose.Types.ObjectId(agencyId);
       const influencerId = body.influencerId
         ? mongoose.isValidObjectId(body.influencerId)
           ? new mongoose.Types.ObjectId(body.influencerId)
@@ -209,10 +231,30 @@ class SubredditsController {
       }
 
       await connectMongo();
-      const existing = await SubredditModel.findOne({ name }).lean<SubredditDoc>();
+
+      // Verify the linked influencer (if any) is in the same agency. Without
+      // this check an admin could link a sub to an influencer in another
+      // agency by hand-crafting the request.
+      if (influencerId) {
+        const exists = await InfluencerModel.exists({
+          _id: influencerId,
+          agencyId: agencyObjId,
+        });
+        if (!exists) {
+          return NextResponse.json(
+            { error: "Linked influencer does not exist in the active agency" },
+            { status: 400 },
+          );
+        }
+      }
+
+      const existing = await SubredditModel.findOne({
+        agencyId: agencyObjId,
+        name,
+      }).lean<SubredditDoc>();
       if (existing) {
         return NextResponse.json(
-          { error: `r/${name} is already tracked` },
+          { error: `r/${name} is already tracked in this agency` },
           { status: 409 },
         );
       }
@@ -244,6 +286,7 @@ class SubredditsController {
       }
 
       const doc = await SubredditModel.create({
+        agencyId: agencyObjId,
         name,
         displayName,
         category,
@@ -265,13 +308,18 @@ class SubredditsController {
   /*  Update / delete                                                       */
   /* ---------------------------------------------------------------------- */
 
-  async handleUpdate(request: NextRequest, id: string): Promise<NextResponse> {
+  async handleUpdate(
+    request: NextRequest,
+    id: string,
+    agencyId: string,
+  ): Promise<NextResponse> {
     try {
       if (!mongoose.isValidObjectId(id)) {
         return NextResponse.json({ error: "Invalid id" }, { status: 400 });
       }
       const body = (await request.json()) as UpdateSubredditBody;
       const update: Record<string, unknown> = {};
+      const agencyObjId = new mongoose.Types.ObjectId(agencyId);
 
       if (typeof body.category === "string" && body.category.trim()) {
         const cat = body.category.trim().toLowerCase();
@@ -289,6 +337,18 @@ class SubredditsController {
         if (body.influencerId === null || body.influencerId === undefined) {
           update.influencerId = null;
         } else if (mongoose.isValidObjectId(body.influencerId)) {
+          // Verify same-agency ownership before re-pointing the link.
+          await connectMongo();
+          const exists = await InfluencerModel.exists({
+            _id: body.influencerId,
+            agencyId: agencyObjId,
+          });
+          if (!exists) {
+            return NextResponse.json(
+              { error: "Linked influencer does not exist in the active agency" },
+              { status: 400 },
+            );
+          }
           update.influencerId = new mongoose.Types.ObjectId(body.influencerId);
         } else {
           return NextResponse.json({ error: "Invalid influencerId" }, { status: 400 });
@@ -299,10 +359,11 @@ class SubredditsController {
       }
 
       await connectMongo();
-      const doc = await SubredditModel.findByIdAndUpdate(id, update, {
-        new: true,
-        runValidators: true,
-      }).lean<SubredditDoc>();
+      const doc = await SubredditModel.findOneAndUpdate(
+        { _id: id, agencyId: agencyObjId },
+        update,
+        { new: true, runValidators: true },
+      ).lean<SubredditDoc>();
       if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
       return NextResponse.json({ data: this.toJson(doc) });
     } catch (err) {
@@ -310,13 +371,20 @@ class SubredditsController {
     }
   }
 
-  async handleDelete(_request: NextRequest, id: string): Promise<NextResponse> {
+  async handleDelete(
+    _request: NextRequest,
+    id: string,
+    agencyId: string,
+  ): Promise<NextResponse> {
     try {
       if (!mongoose.isValidObjectId(id)) {
         return NextResponse.json({ error: "Invalid id" }, { status: 400 });
       }
       await connectMongo();
-      const doc = await SubredditModel.findByIdAndDelete(id);
+      const doc = await SubredditModel.findOneAndDelete({
+        _id: id,
+        agencyId: new mongoose.Types.ObjectId(agencyId),
+      });
       if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
       // Snapshots are intentionally retained — they're cheap and useful for
       // historical comparisons should the operator re-add the same subreddit.
@@ -366,6 +434,7 @@ class SubredditsController {
         },
         $setOnInsert: {
           subredditId: doc._id,
+          agencyId: doc.agencyId,
           weekKey,
         },
       },
@@ -382,10 +451,15 @@ class SubredditsController {
     return snap;
   }
 
-  async handleSyncAll(_request: NextRequest): Promise<NextResponse> {
+  async handleSyncAll(
+    _request: NextRequest,
+    agencyId: string,
+  ): Promise<NextResponse> {
     try {
       await connectMongo();
-      const docs = await SubredditModel.find({}).lean<SubredditDoc[]>();
+      const docs = await SubredditModel.find({
+        agencyId: new mongoose.Types.ObjectId(agencyId),
+      }).lean<SubredditDoc[]>();
       const result = await this.runSync(docs);
       return NextResponse.json({ data: result });
     } catch (err) {
@@ -393,13 +467,20 @@ class SubredditsController {
     }
   }
 
-  async handleSyncOne(_request: NextRequest, id: string): Promise<NextResponse> {
+  async handleSyncOne(
+    _request: NextRequest,
+    id: string,
+    agencyId: string,
+  ): Promise<NextResponse> {
     try {
       if (!mongoose.isValidObjectId(id)) {
         return NextResponse.json({ error: "Invalid id" }, { status: 400 });
       }
       await connectMongo();
-      const doc = await SubredditModel.findById(id).lean<SubredditDoc>();
+      const doc = await SubredditModel.findOne({
+        _id: id,
+        agencyId: new mongoose.Types.ObjectId(agencyId),
+      }).lean<SubredditDoc>();
       if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
       const result = await this.runSync([doc]);
       return NextResponse.json({ data: result });

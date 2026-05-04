@@ -10,6 +10,12 @@ import type { Role } from "./roles";
 export interface SessionUser {
   username: string;
   role: Role;
+  /**
+   * Set only for agency_owner sessions. Stringified ObjectId of the agency
+   * this user is pinned to. Useful client-side for hiding the agency
+   * switcher and for routing.
+   */
+  agencyId?: string;
 }
 
 export interface LoginParams {

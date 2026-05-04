@@ -8,6 +8,10 @@
  * `data` is a free-form Map so that adding a new platform field doesn't
  * require a schema change. Validation is enforced in the controller against
  * the platform registry.
+ *
+ * `agencyId` is denormalized from the parent influencer so list queries
+ * (e.g. agency-wide aggregates) hit a single index instead of a join.
+ * It's set at create time and never updated.
  */
 import "server-only";
 import mongoose, { Schema } from "mongoose";
@@ -15,6 +19,7 @@ import { PLATFORM_KEYS } from "@/lib/platforms/registry";
 
 export interface WeeklyEntryDoc {
   _id: mongoose.Types.ObjectId;
+  agencyId: mongoose.Types.ObjectId;
   influencerId: mongoose.Types.ObjectId;
   platform: string;
   weekKey: string;
@@ -25,6 +30,12 @@ export interface WeeklyEntryDoc {
 
 const WeeklyEntrySchema = new Schema<WeeklyEntryDoc>(
   {
+    agencyId: {
+      type: Schema.Types.ObjectId,
+      ref: "Agency",
+      required: true,
+      index: true,
+    },
     influencerId: {
       type: Schema.Types.ObjectId,
       ref: "Influencer",

@@ -21,6 +21,7 @@ import { Suspense } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   AlertCircle,
+  Building2,
   Layers,
   ListChecks,
   LogOut,
@@ -31,8 +32,10 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AgencySwitcher } from "@/components/AgencySwitcher";
 import { useInfluencers } from "@/lib/influencers/influencers.hooks";
 import { useLogout, useSession } from "@/lib/auth/auth.hooks";
+import { isAdmin, isEditorOrAdmin } from "@/lib/auth/roles";
 import type { Influencer } from "@/lib/influencers/types";
 import { PLATFORMS, PLATFORM_KEYS } from "@/lib/platforms/registry";
 
@@ -91,10 +94,23 @@ function SidebarBody() {
   const isAllModelsActive =
     isDashboard && (!selectedDashboardId || selectedDashboardId === "all");
 
+  const showAgencyAdmin = isAdmin(session?.role);
+  const showTracker = isEditorOrAdmin(session?.role);
+
   return (
     <>
-      <nav className="px-3 py-4 space-y-1">
+      <AgencySwitcher />
+
+      <nav className="px-3 pt-1 pb-4 space-y-1">
         <SectionLabel>Workspace</SectionLabel>
+        {showAgencyAdmin && (
+          <NavRow
+            href="/agencies"
+            icon={Building2}
+            label="Agencies"
+            active={pathname.startsWith("/agencies")}
+          />
+        )}
         <NavRow
           href="/influencers"
           icon={Users}
@@ -107,12 +123,14 @@ function SidebarBody() {
           label="Subreddits"
           active={pathname.startsWith("/subreddits")}
         />
-        <NavRow
-          href="/tracker"
-          icon={ListChecks}
-          label="Weekly tracker"
-          active={pathname.startsWith("/tracker")}
-        />
+        {showTracker && (
+          <NavRow
+            href="/tracker"
+            icon={ListChecks}
+            label="Weekly tracker"
+            active={pathname.startsWith("/tracker")}
+          />
+        )}
       </nav>
 
       <div className="px-3 pb-4 flex-1 min-h-0 flex flex-col">
@@ -186,6 +204,11 @@ function SidebarBody() {
           <span className="text-foreground font-medium">
             {session?.username ?? "—"}
           </span>
+          {session?.role && (
+            <span className="ml-1 text-muted-foreground">
+              ({roleLabel(session.role)})
+            </span>
+          )}
         </div>
         <Button
           variant="ghost"
@@ -213,6 +236,19 @@ function SidebarFallback() {
       ))}
     </div>
   );
+}
+
+function roleLabel(role: string): string {
+  switch (role) {
+    case "admin":
+      return "admin";
+    case "editor":
+      return "editor";
+    case "agency_owner":
+      return "agency owner";
+    default:
+      return role;
+  }
 }
 
 function SectionLabel({
