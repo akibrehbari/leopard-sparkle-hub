@@ -11,6 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import { DASHBOARD_RANGES, type DashboardRange } from "@/lib/utils/range";
 import { Download, FileDown, Link2, Loader2, Search } from "lucide-react";
+import { AgencyTopbarLinks } from "./AgencyTopbarLinks";
 
 interface Props {
   title: string;
@@ -50,6 +51,7 @@ export function Topbar({
         <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
       </div>
       <div className="flex items-center gap-2 no-print">
+        <AgencyTopbarLinks />
         <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary/50 border border-border text-sm text-muted-foreground">
           <Search className="size-4" />
           <span>Search…</span>

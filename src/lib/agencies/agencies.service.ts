@@ -56,6 +56,16 @@ class AgenciesService {
   async setActive(agencyId: string): Promise<void> {
     await api.post(this.url("/active"), { agencyId });
   }
+
+  /**
+   * Fetch the full agency record for whichever agency is currently
+   * active for the session (cookie for admin/editor, JWT for owner).
+   * Returns `null` when no agency is selected yet.
+   */
+  async getActive(): Promise<Agency | null> {
+    const { data } = await api.get<{ data: Agency | null }>(this.url("/active"));
+    return data.data;
+  }
 }
 
 export const agenciesService = new AgenciesService();

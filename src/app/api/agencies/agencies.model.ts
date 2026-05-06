@@ -14,6 +14,21 @@
 import "server-only";
 import mongoose, { Schema } from "mongoose";
 
+/**
+ * Outbound links surfaced in the topbar for admin + agency-owner sessions.
+ * Editors never see these (data-entry teammates don't need shortcuts to
+ * the agency's monetization channels).
+ *
+ * Each value is either a full URL string or null when unset. Validation
+ * (must parse as URL with http/https) is enforced in the controller.
+ */
+export interface AgencyLinks {
+  onlyfans: string | null;
+  infloww: string | null;
+  instagram: string | null;
+  website: string | null;
+}
+
 export interface AgencyDoc {
   _id: mongoose.Types.ObjectId;
   /** Display name. Trimmed; uniqueness is enforced case-insensitively. */
@@ -26,6 +41,7 @@ export interface AgencyDoc {
   ownerUsername: string;
   /** bcrypt hash of the owner password. Never compared in plaintext. */
   ownerPasswordHash: string;
+  links: AgencyLinks;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -40,6 +56,12 @@ const AgencySchema = new Schema<AgencyDoc>(
       lowercase: true,
     },
     ownerPasswordHash: { type: String, required: true },
+    links: {
+      onlyfans: { type: String, default: null, trim: true },
+      infloww: { type: String, default: null, trim: true },
+      instagram: { type: String, default: null, trim: true },
+      website: { type: String, default: null, trim: true },
+    },
   },
   { timestamps: true, collection: "agencies" },
 );

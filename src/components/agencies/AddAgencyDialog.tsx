@@ -29,6 +29,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useCreateAgency } from "@/lib/agencies/agencies.hooks";
+import {
+  AgencyLinksFields,
+  emptyLinksForm,
+  formStateToLinks,
+  type AgencyLinksFormState,
+} from "@/components/agencies/AgencyLinksFields";
+import type { AgencyLinkKey } from "@/lib/agencies/types";
 
 interface Props {
   trigger?: React.ReactNode;
@@ -43,13 +50,18 @@ export function AddAgencyDialog({ trigger }: Props) {
   const [ownerUsername, setOwnerUsername] = useState("");
   const [ownerPassword, setOwnerPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [links, setLinks] = useState<AgencyLinksFormState>(() => emptyLinksForm());
 
   const reset = () => {
     setName("");
     setOwnerUsername("");
     setOwnerPassword("");
     setShowPassword(false);
+    setLinks(emptyLinksForm());
   };
+
+  const updateLink = (key: AgencyLinkKey, value: string) =>
+    setLinks((prev) => ({ ...prev, [key]: value }));
 
   const generate = () => {
     setOwnerPassword(generatePassword());
@@ -57,11 +69,13 @@ export function AddAgencyDialog({ trigger }: Props) {
   };
 
   const submit = () => {
+    const linksPayload = formStateToLinks(links);
     create.mutate(
       {
         name: name.trim(),
         ownerUsername: ownerUsername.trim().toLowerCase(),
         ownerPassword,
+        ...(Object.keys(linksPayload).length > 0 ? { links: linksPayload } : {}),
       },
       {
         onSuccess: (agency) => {
@@ -104,7 +118,7 @@ export function AddAgencyDialog({ trigger }: Props) {
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Add agency</DialogTitle>
           <DialogDescription>
@@ -182,6 +196,14 @@ export function AddAgencyDialog({ trigger }: Props) {
               Stored as a bcrypt hash. Copy the password before submitting —
               it cannot be recovered later, only reset.
             </p>
+          </div>
+
+          <div className="pt-2 border-t border-border">
+            <AgencyLinksFields
+              values={links}
+              onChange={updateLink}
+              idPrefix="ag-add-link"
+            />
           </div>
         </div>
 

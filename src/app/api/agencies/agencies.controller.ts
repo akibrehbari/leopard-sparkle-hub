@@ -18,24 +18,28 @@ import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 
 import { connectMongo } from "@/lib/db/mongo";
-import { AgencyModel, type AgencyDoc } from "./agencies.model";
+import { AgencyModel, type AgencyDoc, type AgencyLinks } from "./agencies.model";
 import { InfluencerModel } from "@/app/api/influencers/influencers.model";
 import { WeeklyEntryModel } from "@/app/api/entries/entries.model";
 import {
   SubredditModel,
   SubredditSnapshotModel,
 } from "@/app/api/subreddits/subreddits.model";
-import type {
-  Agency,
-  AgencySummary,
-  CreateAgencyBody,
-  UpdateAgencyBody,
+import {
+  AGENCY_LINK_KEYS,
+  AGENCY_LINK_LABELS,
+  type Agency,
+  type AgencyLinkKey,
+  type AgencySummary,
+  type CreateAgencyBody,
+  type UpdateAgencyBody,
 } from "@/lib/agencies/types";
-import { getSessionRole } from "@/lib/tenancy/server";
+import { getSessionRole, resolveAgencyContext } from "@/lib/tenancy/server";
 
 const BCRYPT_COST = 10;
 const USERNAME_REGEX = /^[a-z0-9_.-]{3,64}$/;
 const PASSWORD_MIN_LENGTH = 8;
+const URL_MAX_LENGTH = 2048;
 
 class AgenciesController {
   /* ---------------------------------------------------------------------- */
@@ -47,6 +51,7 @@ class AgenciesController {
       _id: doc._id.toString(),
       name: doc.name,
       ownerUsername: doc.ownerUsername,
+      links: this.toLinksJson(doc.links),
       ...(counts ? { counts } : {}),
       createdAt: doc.createdAt.toISOString(),
       updatedAt: doc.updatedAt.toISOString(),
@@ -55,6 +60,104 @@ class AgenciesController {
 
   private toSummary(doc: AgencyDoc): AgencySummary {
     return { _id: doc._id.toString(), name: doc.name };
+  }
+
+  /**
+   * Materialize a fully-shaped links object regardless of what's in Mongo.
+   * Older docs created before the field existed return all-null so the
+   * client doesn't have to defend against undefined.
+   */
+  private toLinksJson(raw: Partial<AgencyLinks> | null | undefined): AgencyLinks {
+    return {
+      onlyfans: raw?.onlyfans ?? null,
+      infloww: raw?.infloww ?? null,
+      instagram: raw?.instagram ?? null,
+      website: raw?.website ?? null,
+    };
+  }
+
+  /**
+   * Validate + sanitize a links payload from a create / update request.
+   *
+   * Each value can be:
+   *   - undefined → not present in the request, skip (PATCH semantics).
+   *   - "" / null → clear the link.
+   *   - string → must parse as URL with http or https scheme.
+   *
+   * Returns a flat `{ error, links }` shape (vs. a discriminated union)
+   * because the project's tsconfig has `strictNullChecks: false`, which
+   * defeats union narrowing. `error === null` ⇒ links is the sanitized
+   * partial; otherwise links is empty and error is the user-facing reason.
+   */
+  private sanitizeLinks(
+    input: Partial<AgencyLinks> | undefined,
+  ): { error: string | null; links: Partial<AgencyLinks> } {
+    if (!input || typeof input !== "object") {
+      return { error: null, links: {} };
+    }
+    const out: Partial<AgencyLinks> = {};
+    for (const key of AGENCY_LINK_KEYS) {
+      if (!(key in input)) continue;
+      const raw = input[key];
+      if (raw === null || raw === undefined || raw === "") {
+        out[key] = null;
+        continue;
+      }
+      if (typeof raw !== "string") {
+        return {
+          error: `${AGENCY_LINK_LABELS[key]} link must be a string`,
+          links: {},
+        };
+      }
+      const trimmed = raw.trim();
+      if (trimmed.length === 0) {
+        out[key] = null;
+        continue;
+      }
+      if (trimmed.length > URL_MAX_LENGTH) {
+        return {
+          error: `${AGENCY_LINK_LABELS[key]} link is too long`,
+          links: {},
+        };
+      }
+      const parsed = this.parseHttpUrl(trimmed);
+      if (!parsed) {
+        return {
+          error: `${AGENCY_LINK_LABELS[key]} link must be a full URL starting with http:// or https://`,
+          links: {},
+        };
+      }
+      out[key] = parsed;
+    }
+    return { error: null, links: out };
+  }
+
+  /**
+   * Parse a URL and return the canonical http/https form, or null if
+   * malformed. We accept both http and https — agencies might track a
+   * staging / vanity URL that hasn't moved to TLS yet.
+   */
+  private parseHttpUrl(raw: string): string | null {
+    try {
+      const u = new URL(raw);
+      if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+      return u.toString();
+    } catch {
+      return null;
+    }
+  }
+
+  /** Translate a sanitized partial links update into a $set field map. */
+  private linksToUpdateSet(
+    partial: Partial<AgencyLinks>,
+  ): Record<string, string | null> {
+    const out: Record<string, string | null> = {};
+    for (const key of AGENCY_LINK_KEYS as readonly AgencyLinkKey[]) {
+      if (key in partial) {
+        out[`links.${key}`] = partial[key] ?? null;
+      }
+    }
+    return out;
   }
 
   private errorResponse(err: unknown, fallbackStatus = 500): NextResponse {
@@ -140,6 +243,37 @@ class AgenciesController {
     }
   }
 
+  /**
+   * Return the full agency record currently active for the session — used
+   * by the dashboard topbar to render the agency's outbound links.
+   *
+   * For admin / editor: agency comes from the active-agency cookie.
+   * For agency_owner: agency comes from the JWT-bound id (cookie ignored).
+   *
+   * Returns 200 with `{ data: null }` when the cookie isn't set yet (so
+   * the topbar can quietly render no links instead of erroring).
+   */
+  async handleGetActive(request: NextRequest): Promise<NextResponse> {
+    try {
+      const ctx = await resolveAgencyContext(request);
+      if (ctx instanceof NextResponse) {
+        // 400 with `code: "no_active_agency"` is the "no cookie picked
+        // yet" path — translate it into a soft 200/null so callers don't
+        // have to swallow the error in two places.
+        if (ctx.status === 400) {
+          return NextResponse.json({ data: null });
+        }
+        return ctx;
+      }
+      await connectMongo();
+      const doc = await AgencyModel.findById(ctx.agencyId).lean<AgencyDoc>();
+      if (!doc) return NextResponse.json({ data: null });
+      return NextResponse.json({ data: this.toJson(doc) });
+    } catch (err) {
+      return this.errorResponse(err);
+    }
+  }
+
   /* ---------------------------------------------------------------------- */
   /*  Create                                                                */
   /* ---------------------------------------------------------------------- */
@@ -176,6 +310,11 @@ class AgenciesController {
         );
       }
 
+      const linksResult = this.sanitizeLinks(body.links);
+      if (linksResult.error) {
+        return NextResponse.json({ error: linksResult.error }, { status: 400 });
+      }
+
       await connectMongo();
       const ownerPasswordHash = await bcrypt.hash(ownerPassword, BCRYPT_COST);
 
@@ -185,6 +324,9 @@ class AgenciesController {
           name,
           ownerUsername,
           ownerPasswordHash,
+          // Mongoose merges the partial against the schema defaults so
+          // missing keys land as null automatically.
+          links: linksResult.links,
         })).toObject() as AgencyDoc;
       } catch (err) {
         if (this.isDuplicateKeyError(err)) {
@@ -250,6 +392,15 @@ class AgenciesController {
           );
         }
         update.ownerPasswordHash = await bcrypt.hash(body.ownerPassword, BCRYPT_COST);
+      }
+      if (body.links !== undefined) {
+        const linksResult = this.sanitizeLinks(body.links);
+        if (linksResult.error) {
+          return NextResponse.json({ error: linksResult.error }, { status: 400 });
+        }
+        // Use $set on each `links.<key>` so we don't blow away keys the
+        // request didn't mention — PATCH semantics, not PUT.
+        Object.assign(update, this.linksToUpdateSet(linksResult.links));
       }
       if (Object.keys(update).length === 0) {
         return NextResponse.json({ error: "Nothing to update" }, { status: 400 });

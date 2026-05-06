@@ -1,13 +1,19 @@
 /**
- * Active-agency selection endpoint.
+ * Active-agency endpoint.
  *
- * `POST { agencyId }` writes the `active_agency_id` cookie after validating
- * that the agency exists. Used by admin / editor sessions when they pick a
- * different agency in the topbar switcher.
+ * `GET` returns the full agency record bound to the current session
+ * (cookie for admin/editor, JWT for agency_owner). Used by the topbar to
+ * render the agency's outbound links. Returns `{ data: null }` when no
+ * agency is active yet (e.g. a freshly-logged-in admin who hasn't
+ * selected one).
+ *
+ * `POST { agencyId }` writes the `active_agency_id` cookie after
+ * validating that the agency exists. Used by admin / editor sessions when
+ * they pick a different agency in the topbar switcher.
  *
  * Agency-owner sessions cannot change their active agency — their binding
- * lives in the JWT. We return 403 for them so the UI can hide the switcher
- * accordingly.
+ * lives in the JWT. We return 403 for them on POST so the UI can hide the
+ * switcher accordingly.
  */
 import { NextRequest, NextResponse } from "next/server";
 
@@ -20,6 +26,10 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+export async function GET(request: NextRequest) {
+  return agenciesController.handleGetActive(request);
+}
 
 export async function POST(request: NextRequest) {
   const session = await getSessionRole(request);

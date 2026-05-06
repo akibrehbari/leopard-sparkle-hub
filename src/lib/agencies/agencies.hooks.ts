@@ -7,6 +7,7 @@ import type { CreateAgencyBody, UpdateAgencyBody } from "./types";
 
 const LIST_KEY = ["agencies", "list"] as const;
 const SUMMARIES_KEY = ["agencies", "summaries"] as const;
+const ACTIVE_KEY = ["agencies", "active"] as const;
 
 export function useAgencies(options: { enabled?: boolean } = {}) {
   return useQuery({
@@ -24,6 +25,19 @@ export function useAgencySummaries(options: { enabled?: boolean } = {}) {
   });
 }
 
+/**
+ * Fetch the full agency record for the session's active agency. Returns
+ * `null` when no agency is selected. The topbar uses this to render the
+ * outbound social/website link icons.
+ */
+export function useActiveAgency(options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: ACTIVE_KEY,
+    queryFn: () => agenciesService.getActive(),
+    enabled: options.enabled ?? true,
+  });
+}
+
 export function useCreateAgency() {
   const qc = useQueryClient();
   return useMutation({
@@ -31,6 +45,7 @@ export function useCreateAgency() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: LIST_KEY });
       qc.invalidateQueries({ queryKey: SUMMARIES_KEY });
+      qc.invalidateQueries({ queryKey: ACTIVE_KEY });
     },
   });
 }
@@ -43,6 +58,7 @@ export function useUpdateAgency() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: LIST_KEY });
       qc.invalidateQueries({ queryKey: SUMMARIES_KEY });
+      qc.invalidateQueries({ queryKey: ACTIVE_KEY });
     },
   });
 }
@@ -56,6 +72,7 @@ export function useDeleteAgency() {
       // A delete cascades — refresh effectively everything that's tenant-scoped.
       qc.invalidateQueries({ queryKey: LIST_KEY });
       qc.invalidateQueries({ queryKey: SUMMARIES_KEY });
+      qc.invalidateQueries({ queryKey: ACTIVE_KEY });
       qc.invalidateQueries({ queryKey: ["influencers"] });
       qc.invalidateQueries({ queryKey: ["subreddits"] });
       qc.invalidateQueries({ queryKey: ["entries"] });

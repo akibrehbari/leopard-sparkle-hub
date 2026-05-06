@@ -24,7 +24,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useUpdateAgency } from "@/lib/agencies/agencies.hooks";
-import type { Agency } from "@/lib/agencies/types";
+import type { Agency, AgencyLinkKey } from "@/lib/agencies/types";
+import {
+  AgencyLinksFields,
+  diffLinks,
+  emptyLinksForm,
+  linksToFormState,
+  type AgencyLinksFormState,
+} from "@/components/agencies/AgencyLinksFields";
 
 interface Props {
   agency: Agency | null;
@@ -40,6 +47,7 @@ export function EditAgencyDialog({ agency, open, onOpenChange }: Props) {
   const [ownerUsername, setOwnerUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [links, setLinks] = useState<AgencyLinksFormState>(() => emptyLinksForm());
 
   useEffect(() => {
     if (agency) {
@@ -47,8 +55,12 @@ export function EditAgencyDialog({ agency, open, onOpenChange }: Props) {
       setOwnerUsername(agency.ownerUsername);
       setNewPassword("");
       setShowPassword(false);
+      setLinks(linksToFormState(agency.links));
     }
   }, [agency]);
+
+  const updateLink = (key: AgencyLinkKey, value: string) =>
+    setLinks((prev) => ({ ...prev, [key]: value }));
 
   if (!agency) return null;
 
@@ -69,6 +81,10 @@ export function EditAgencyDialog({ agency, open, onOpenChange }: Props) {
     }
     if (newPassword.length > 0) {
       body.ownerPassword = newPassword;
+    }
+    const linksDiff = diffLinks(agency.links, links);
+    if (Object.keys(linksDiff).length > 0) {
+      body.links = linksDiff;
     }
 
     if (Object.keys(body).length === 0) {
@@ -106,7 +122,7 @@ export function EditAgencyDialog({ agency, open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Edit agency</DialogTitle>
           <DialogDescription>
@@ -178,6 +194,14 @@ export function EditAgencyDialog({ agency, open, onOpenChange }: Props) {
                 <RefreshCw className="size-4" />
               </Button>
             </div>
+          </div>
+
+          <div className="pt-2 border-t border-border">
+            <AgencyLinksFields
+              values={links}
+              onChange={updateLink}
+              idPrefix="ag-edit-link"
+            />
           </div>
         </div>
 

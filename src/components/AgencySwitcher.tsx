@@ -87,6 +87,9 @@ export function AgencySwitcher() {
           return k !== "auth" && k !== "agencies";
         },
       });
+      // Active-agency record drives the topbar links — refetch explicitly
+      // since the broad predicate skips every "agencies" key.
+      qc.invalidateQueries({ queryKey: ["agencies", "active"] });
     });
   }, [session, activeId, summariesQ.isLoading, summariesQ.data, qc]);
 
@@ -158,6 +161,10 @@ export function AgencySwitcher() {
           return k !== "auth" && k !== "agencies";
         },
       });
+      // Same caveat as the auto-select branch — the predicate above skips
+      // all "agencies" keys, so refresh the active record explicitly so
+      // the topbar links update.
+      await qc.invalidateQueries({ queryKey: ["agencies", "active"] });
     } catch (err) {
       toast({
         title: "Couldn't switch agency",
