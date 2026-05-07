@@ -40,6 +40,7 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { ModelOverview } from "@/components/dashboard/ModelOverview";
 import { OnlyFansAttributionSection } from "@/components/dashboard/OnlyFansAttributionSection";
 import { PlatformSection } from "@/components/dashboard/PlatformSection";
+import { SubscribersROIChart } from "@/components/dashboard/SubscribersROIChart";
 import { PlatformBadge } from "@/components/dashboard/PlatformBadge";
 import { ShareLinkDialog } from "@/components/dashboard/ShareLinkDialog";
 import { SubredditTable } from "@/components/subreddits/SubredditTable";
@@ -230,6 +231,10 @@ function DashboardContent() {
               influencer={selectedInfluencer}
               readOnly={readOnly}
             />
+          </section>
+
+          <section className="mb-8">
+            <SubscribersROIChart influencer={selectedInfluencer} />
           </section>
 
           <section className="mb-8">

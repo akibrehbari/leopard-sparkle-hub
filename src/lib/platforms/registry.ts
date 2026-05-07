@@ -77,7 +77,15 @@ const SOURCE_LABEL: Record<AcquisitionPlatformKey, string> = {
 };
 
 function onlyFansFields(): PlatformField[] {
-  const out: PlatformField[] = [];
+  const out: PlatformField[] = [
+    {
+      key: "subscribers",
+      label: "Total subscribers",
+      kind: "count",
+      cumulative: true,
+      hint: "Total active subscribers on OnlyFans as of this week.",
+    },
+  ];
   for (const src of ACQUISITION_PLATFORM_KEYS) {
     out.push({
       key: `revenue_${src}`,

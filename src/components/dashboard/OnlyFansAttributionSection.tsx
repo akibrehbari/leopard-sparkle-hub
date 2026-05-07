@@ -28,7 +28,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ArrowDownRight, ArrowUpRight, DollarSign, Pencil, Plus, Receipt, Target, Wallet } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, DollarSign, Pencil, Plus, Receipt, Target, TrendingUp, Wallet } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ChartCard } from "@/components/dashboard/ChartCard";
@@ -47,7 +47,7 @@ import type {
 } from "@/lib/utils/derive";
 import { onlyFansSummary } from "@/lib/utils/derive";
 import { useEntries } from "@/lib/entries/entries.hooks";
-import { formatUSD } from "@/lib/utils/format";
+import { formatPercent, formatUSD } from "@/lib/utils/format";
 import { currentWeekKey, lastNWeeks, weekShortLabel } from "@/lib/utils/week";
 
 const HISTORY_WEEKS = 12;
@@ -156,7 +156,7 @@ export function OnlyFansAttributionSection({
       </div>
 
       {/* KPI tiles */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
         <KpiCard
           label="Total revenue"
           value={formatUSD(summary.totals.revenue, { fractional: true })}
@@ -191,6 +191,27 @@ export function OnlyFansAttributionSection({
             summary.totals.roas === null
               ? "No spend in window"
               : "Revenue per $ spent"
+          }
+        />
+        <KpiCard
+          label="ROI"
+          value={
+            summary.totals.roi === null
+              ? "—"
+              : formatPercent(summary.totals.roi, 1)
+          }
+          icon={TrendingUp}
+          accent={
+            summary.totals.roi === null
+              ? "primary"
+              : summary.totals.roi >= 0
+                ? "success"
+                : "instagram"
+          }
+          hint={
+            summary.totals.roi === null
+              ? "No spend in window"
+              : "(revenue − spend) / spend"
           }
         />
       </div>

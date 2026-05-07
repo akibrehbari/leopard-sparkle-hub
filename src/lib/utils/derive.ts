@@ -129,8 +129,10 @@ export interface OnlyFansWeekPoint {
   /** Sum of per-source spend. */
   totalSpend: number;
   net: number;
-  /** revenue / spend; null when spend is 0 (avoid divide-by-zero). */
+  /** revenue / spend; null when spend is 0. */
   roas: number | null;
+  /** (revenue - spend) / spend * 100; null when spend is 0. */
+  roi: number | null;
 }
 
 export interface OnlyFansSourceSummary {
@@ -139,6 +141,8 @@ export interface OnlyFansSourceSummary {
   spend: number;
   net: number;
   roas: number | null;
+  /** (revenue - spend) / spend * 100; null when spend is 0. */
+  roi: number | null;
   /** Per-week revenue series (USD) for sparkline rendering. */
   weekly: { weekKey: string; revenue: number; spend: number }[];
 }
@@ -151,6 +155,8 @@ export interface OnlyFansSummary {
     spend: number;
     net: number;
     roas: number | null;
+    /** (revenue - spend) / spend * 100; null when spend is 0. */
+    roi: number | null;
   };
   /** One summary per acquisition platform. */
   bySource: OnlyFansSourceSummary[];
@@ -208,11 +214,11 @@ export function onlyFansSummary(
       });
     }
 
-    const totalRevenue =
-      revenue.reddit + revenue.instagram + revenue.x;
+    const totalRevenue = revenue.reddit + revenue.instagram + revenue.x;
     const totalSpend = spend.reddit + spend.instagram + spend.x;
     const net = totalRevenue - totalSpend;
     const roas = totalSpend > 0 ? totalRevenue / totalSpend : null;
+    const roi = totalSpend > 0 ? ((totalRevenue - totalSpend) / totalSpend) * 100 : null;
 
     return {
       weekKey: wk,
@@ -222,6 +228,7 @@ export function onlyFansSummary(
       totalSpend,
       net,
       roas,
+      roi,
     };
   });
 
@@ -241,6 +248,7 @@ export function onlyFansSummary(
       spend: totalSpend,
       net: totalRevenue - totalSpend,
       roas: totalSpend > 0 ? totalRevenue / totalSpend : null,
+      roi: totalSpend > 0 ? ((totalRevenue - totalSpend) / totalSpend) * 100 : null,
     },
     bySource: ACQUISITION_PLATFORM_KEYS.map((src) => {
       const r = sourceTotals[src].revenue;
@@ -251,10 +259,66 @@ export function onlyFansSummary(
         spend: s,
         net: r - s,
         roas: s > 0 ? r / s : null,
+        roi: s > 0 ? ((r - s) / s) * 100 : null,
         weekly: sourceWeekly[src],
       };
     }),
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Subscribers & ROI combined series                                         */
+/* -------------------------------------------------------------------------- */
+
+export interface SubscribersROIPoint {
+  weekKey: string;
+  label: string;
+  reddit: number | null;
+  instagram: number | null;
+  x: number | null;
+  onlyfans: number | null;
+  roi: number | null;
+}
+
+/**
+ * Build a per-week series combining all-platform follower/subscriber counts
+ * with the OnlyFans ROI %. Used by the SubscribersROIChart component.
+ *
+ * - reddit/instagram/x: cumulative followers
+ * - onlyfans: cumulative subscribers (the new `subscribers` field)
+ * - roi: (revenue - spend) / spend * 100 from onlyfans entries
+ */
+export function subscribersROISeries(
+  entries: WeeklyEntry[],
+  weekKeys: readonly string[],
+  weekLabelFn: (wk: string) => string,
+): SubscribersROIPoint[] {
+  const ordered = sortedWeekKeys(weekKeys);
+
+  const redditEntries = entries.filter((e) => e.platform === "reddit");
+  const instagramEntries = entries.filter((e) => e.platform === "instagram");
+  const xEntries = entries.filter((e) => e.platform === "x");
+  const ofEntries = entries.filter((e) => e.platform === "onlyfans");
+
+  const redditSeries = deltaSeries(redditEntries, weekKeys, "followers");
+  const instagramSeries = deltaSeries(instagramEntries, weekKeys, "followers");
+  const xSeries = deltaSeries(xEntries, weekKeys, "followers");
+  const ofSubscriberSeries = deltaSeries(ofEntries, weekKeys, "subscribers");
+
+  const ofSummary = onlyFansSummary(ofEntries, weekKeys);
+  const roiByWeek = new Map<string, number | null>(
+    ofSummary.weeks.map((w) => [w.weekKey, w.roi]),
+  );
+
+  return ordered.map((wk, i) => ({
+    weekKey: wk,
+    label: weekLabelFn(wk),
+    reddit: redditSeries[i]?.cumulative ?? null,
+    instagram: instagramSeries[i]?.cumulative ?? null,
+    x: xSeries[i]?.cumulative ?? null,
+    onlyfans: ofSubscriberSeries[i]?.cumulative ?? null,
+    roi: roiByWeek.get(wk) ?? null,
+  }));
 }
 
 /* -------------------------------------------------------------------------- */
@@ -275,6 +339,8 @@ export interface CrossPlatformAggregate {
   totalSpend: number;
   net: number;
   roas: number | null;
+  /** (revenue - spend) / spend * 100; null when spend is 0. */
+  roi: number | null;
   /** Sum of latest cumulative followers across all influencers, per platform. */
   totalFollowers: Record<AcquisitionPlatformKey, number>;
   /** Total weekly follower growth (sum of deltas across all influencers). */
@@ -330,6 +396,7 @@ export function crossPlatformAggregate(
     totalSpend,
     net: totalRevenue - totalSpend,
     roas: totalSpend > 0 ? totalRevenue / totalSpend : null,
+    roi: totalSpend > 0 ? ((totalRevenue - totalSpend) / totalSpend) * 100 : null,
     totalFollowers,
     weeklyFollowerGrowth,
   };
