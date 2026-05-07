@@ -24,6 +24,10 @@ export interface InfluencerDoc {
     x?: string | null;
     onlyfans?: string | null;
   };
+  /** Portal login username. Unique, lowercase, sparse (not all influencers need login). */
+  loginUsername?: string | null;
+  /** bcrypt hash of the portal login password. */
+  loginPasswordHash?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -43,6 +47,15 @@ const InfluencerSchema = new Schema<InfluencerDoc>(
       x: { type: String, default: null, trim: true },
       onlyfans: { type: String, default: null, trim: true },
     },
+    loginUsername: {
+      type: String,
+      default: null,
+      lowercase: true,
+      trim: true,
+      sparse: true,
+      unique: true,
+    },
+    loginPasswordHash: { type: String, default: null },
   },
   { timestamps: true, collection: "influencers" },
 );

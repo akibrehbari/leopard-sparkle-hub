@@ -12,7 +12,7 @@
  */
 
 import { useState } from "react";
-import { Loader2, Plus, Trash2, Pencil, Save, X } from "lucide-react";
+import { KeyRound, Loader2, Plus, Trash2, Pencil, Save, X } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,7 @@ import {
   useInfluencers,
   useUpdateInfluencer,
 } from "@/lib/influencers/influencers.hooks";
+import api from "@/lib/api";
 import type { Influencer, InfluencerHandles } from "@/lib/influencers/types";
 import {
   PLATFORMS,
@@ -188,7 +189,8 @@ export default function InfluencersPage() {
                   {PLATFORM_KEYS.map((k) => (
                     <TableHead key={k}>{PLATFORMS[k].label}</TableHead>
                   ))}
-                  {canEdit && <TableHead className="w-24" />}
+                  <TableHead>Portal login</TableHead>
+                  {canEdit && <TableHead className="w-36" />}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -277,6 +279,10 @@ function InfluencerRow({
   const update = useUpdateInfluencer();
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [loginUsername, setLoginUsername] = useState(influencer.loginUsername ?? "");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginSaving, setLoginSaving] = useState(false);
   const [draft, setDraft] = useState<Record<PlatformKey, string>>(() =>
     PLATFORM_KEYS.reduce(
       (acc, k) => {
@@ -298,6 +304,26 @@ function InfluencerRow({
       ),
     );
     setEditing(false);
+  };
+
+  const saveCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loginUsername.trim() || !loginPassword) return;
+    setLoginSaving(true);
+    try {
+      await api.post(`/api/influencers/${influencer._id}/credentials`, {
+        loginUsername: loginUsername.trim(),
+        loginPassword,
+      });
+      toast({ title: "Login credentials saved" });
+      setLoginOpen(false);
+      setLoginPassword("");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to save credentials";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    } finally {
+      setLoginSaving(false);
+    }
   };
 
   const save = () => {
@@ -355,6 +381,11 @@ function InfluencerRow({
           )}
         </TableCell>
       ))}
+      <TableCell>
+        <span className="text-xs text-muted-foreground">
+          {influencer.loginUsername ?? "—"}
+        </span>
+      </TableCell>
       {canEdit && (
       <TableCell>
         <div className="flex items-center justify-end gap-1">
@@ -381,6 +412,14 @@ function InfluencerRow({
               <Button
                 size="icon"
                 variant="ghost"
+                title="Set portal login"
+                onClick={() => setLoginOpen(true)}
+              >
+                <KeyRound className="size-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
                 onClick={() => setEditing(true)}
               >
                 <Pencil className="size-4" />
@@ -398,6 +437,58 @@ function InfluencerRow({
         </div>
       </TableCell>
       )}
+
+      {/* Set login credentials dialog */}
+      <Dialog open={loginOpen} onOpenChange={setLoginOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Set portal login — {influencer.name}</DialogTitle>
+            <DialogDescription>
+              The influencer will use these credentials to log in at{" "}
+              <strong>/login</strong> and view their personal portal.
+              {influencer.loginUsername && (
+                <span className="block mt-1 text-xs">
+                  Current username: <strong>{influencer.loginUsername}</strong>
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={saveCredentials} className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor={`lu-${influencer._id}`}>Username</Label>
+              <Input
+                id={`lu-${influencer._id}`}
+                value={loginUsername}
+                onChange={(e) => setLoginUsername(e.target.value)}
+                placeholder="e.g. livy_portal"
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor={`lp-${influencer._id}`}>
+                New password{influencer.loginUsername ? " (leave blank to keep current)" : ""}
+              </Label>
+              <Input
+                id={`lp-${influencer._id}`}
+                type="password"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                placeholder="••••••••"
+                required={!influencer.loginUsername}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setLoginOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={loginSaving || !loginUsername.trim()}>
+                {loginSaving && <Loader2 className="size-4 animate-spin" />}
+                Save credentials
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </TableRow>
   );
 }

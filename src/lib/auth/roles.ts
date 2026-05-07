@@ -20,12 +20,12 @@
  * JWT so downstream guards don't need to re-check anything.
  */
 
-export type Role = "admin" | "editor" | "agency_owner";
+export type Role = "admin" | "editor" | "agency_owner" | "influencer";
 
-export const ROLES: readonly Role[] = ["admin", "editor", "agency_owner"];
+export const ROLES: readonly Role[] = ["admin", "editor", "agency_owner", "influencer"];
 
 export function isRole(value: unknown): value is Role {
-  return value === "admin" || value === "editor" || value === "agency_owner";
+  return value === "admin" || value === "editor" || value === "agency_owner" || value === "influencer";
 }
 
 /** Convenience: editors and agency owners cannot perform admin-only mutations. */
@@ -41,4 +41,9 @@ export function isEditorOrAdmin(role: Role | null | undefined): boolean {
 /** Agency owners are pinned to a specific agency at login time. */
 export function isAgencyOwner(role: Role | null | undefined): boolean {
   return role === "agency_owner";
+}
+
+/** Influencers are pinned to their own record and see only their own data. */
+export function isInfluencer(role: Role | null | undefined): boolean {
+  return role === "influencer";
 }

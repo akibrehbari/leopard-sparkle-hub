@@ -38,6 +38,8 @@ import type { Role } from "@/lib/auth/roles";
 export interface AgencyContext {
   agencyId: string;
   role: Role;
+  /** Only set for influencer sessions — the influencer's own document id. */
+  influencerId?: string;
 }
 
 /**
@@ -70,6 +72,13 @@ export async function resolveAgencyContext(
   const session = await verifySession(token);
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (session.role === "influencer") {
+    if (!session.agencyId || !session.influencerId) {
+      return NextResponse.json({ error: "Session missing bindings" }, { status: 401 });
+    }
+    return { agencyId: session.agencyId, role: session.role, influencerId: session.influencerId };
   }
 
   if (session.role === "agency_owner") {

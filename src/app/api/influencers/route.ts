@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const ctx = await resolveAgencyContext(request);
   if (ctx instanceof NextResponse) return ctx;
-  return influencersController.handleList(request, ctx.agencyId);
+  return influencersController.handleList(request, ctx.agencyId, ctx.influencerId);
 }
 
 export async function POST(request: NextRequest) {

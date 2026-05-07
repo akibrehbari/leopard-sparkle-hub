@@ -12,6 +12,7 @@ import "server-only";
 
 import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
+import bcrypt from "bcryptjs";
 import { connectMongo } from "@/lib/db/mongo";
 import { InfluencerModel, type InfluencerDoc } from "./influencers.model";
 import { PLATFORM_KEYS } from "@/lib/platforms/registry";
@@ -33,6 +34,7 @@ class InfluencersController {
       _id: doc._id.toString(),
       name: doc.name,
       handles,
+      loginUsername: doc.loginUsername ?? null,
       createdAt: doc.createdAt.toISOString(),
       updatedAt: doc.updatedAt.toISOString(),
     };
@@ -63,12 +65,23 @@ class InfluencersController {
 
   /* ---------------------------------------------------------------------- */
 
-  async handleList(_request: NextRequest, agencyId: string): Promise<NextResponse> {
+  async handleList(
+    _request: NextRequest,
+    agencyId: string,
+    influencerId?: string,
+  ): Promise<NextResponse> {
     try {
       await connectMongo();
-      const docs = await InfluencerModel.find({
+      const filter: Record<string, unknown> = {
         agencyId: new mongoose.Types.ObjectId(agencyId),
-      })
+      };
+      if (influencerId) {
+        if (!mongoose.isValidObjectId(influencerId)) {
+          return NextResponse.json({ error: "Invalid influencerId" }, { status: 400 });
+        }
+        filter._id = new mongoose.Types.ObjectId(influencerId);
+      }
+      const docs = await InfluencerModel.find(filter)
         .sort({ name: 1 })
         .lean<InfluencerDoc[]>();
       return NextResponse.json({ data: docs.map((d) => this.toJson(d)) });
@@ -179,6 +192,78 @@ class InfluencersController {
       return NextResponse.json({ ok: true });
     } catch (err) {
       return this.errorResponse(err);
+    }
+  }
+
+  /**
+   * Set (or reset) the portal login credentials for a specific influencer.
+   * Admin-only. Body: { loginUsername, loginPassword }.
+   */
+  async handleSetCredentials(
+    request: NextRequest,
+    id: string,
+    agencyId: string,
+  ): Promise<NextResponse> {
+    try {
+      if (!mongoose.isValidObjectId(id)) {
+        return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+      }
+      let body: { loginUsername?: string; loginPassword?: string };
+      try {
+        body = await request.json();
+      } catch {
+        return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+      }
+
+      const loginUsername = body.loginUsername?.trim().toLowerCase();
+      const loginPassword = body.loginPassword?.trim() || null;
+
+      if (!loginUsername) {
+        return NextResponse.json(
+          { error: "loginUsername is required" },
+          { status: 400 },
+        );
+      }
+
+      await connectMongo();
+
+      // Check uniqueness: ensure no other influencer has this username.
+      const existing = await InfluencerModel.findOne({
+        loginUsername,
+        _id: { $ne: new mongoose.Types.ObjectId(id) },
+      }).lean();
+      if (existing) {
+        return NextResponse.json(
+          { error: "loginUsername is already taken" },
+          { status: 409 },
+        );
+      }
+
+      // If no password provided, keep the existing hash (username-only update).
+      const update: Record<string, unknown> = { loginUsername };
+      if (loginPassword) {
+        update.loginPasswordHash = await bcrypt.hash(loginPassword, 10);
+      } else {
+        // Require password if no hash exists yet.
+        const current = await InfluencerModel.findById(id).lean<InfluencerDoc>();
+        if (!current?.loginPasswordHash) {
+          return NextResponse.json(
+            { error: "Password is required for first-time setup" },
+            { status: 400 },
+          );
+        }
+      }
+
+      const doc = await InfluencerModel.findOneAndUpdate(
+        { _id: id, agencyId: new mongoose.Types.ObjectId(agencyId) },
+        { $set: update },
+        { new: true, runValidators: true },
+      ).lean<InfluencerDoc>();
+
+      if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
+      return NextResponse.json({ data: this.toJson(doc) });
+    } catch (err) {
+      return this.errorResponse(err, 400);
     }
   }
 }

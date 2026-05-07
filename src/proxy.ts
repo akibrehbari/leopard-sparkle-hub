@@ -43,7 +43,17 @@ export async function proxy(request: NextRequest) {
 
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   const session = await verifySession(token);
-  if (session) return NextResponse.next();
+  if (session) {
+    // Influencer sessions are locked to /influencer* — redirect everything else.
+    if (
+      session.role === "influencer" &&
+      !pathname.startsWith("/influencer") &&
+      !pathname.startsWith("/api/")
+    ) {
+      return NextResponse.redirect(new URL("/influencer", request.url));
+    }
+    return NextResponse.next();
+  }
 
   if (pathname.startsWith("/api/")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

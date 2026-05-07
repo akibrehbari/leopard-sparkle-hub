@@ -9,7 +9,10 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const ctx = await resolveAgencyContext(request);
   if (ctx instanceof NextResponse) return ctx;
-  return entriesController.handleList(request, ctx.agencyId);
+  return entriesController.handleList(request, ctx.agencyId, {
+    pinnedInfluencerId: ctx.influencerId,
+    stripSpend: ctx.role === "influencer",
+  });
 }
 
 export async function PUT(request: NextRequest) {

@@ -32,6 +32,7 @@ import {
 import type { Role } from "@/lib/auth/roles";
 import { connectMongo } from "@/lib/db/mongo";
 import { AgencyModel, type AgencyDoc } from "@/app/api/agencies/agencies.model";
+import { InfluencerModel, type InfluencerDoc } from "@/app/api/influencers/influencers.model";
 
 interface EnvCredentialSlot {
   kind: "env";
@@ -44,6 +45,7 @@ interface MatchedSlot {
   role: Role;
   username: string;
   agencyId?: string;
+  influencerId?: string;
 }
 
 class AuthController {
@@ -131,6 +133,29 @@ class AuthController {
     return ok ? doc : null;
   }
 
+  /**
+   * Look up an influencer by loginUsername and bcrypt-compare the password.
+   * Returns null if not found or password doesn't match.
+   */
+  private async matchInfluencer(
+    submittedUser: string,
+    submittedPass: string,
+  ): Promise<InfluencerDoc | null> {
+    const lookup = submittedUser.toLowerCase();
+    await connectMongo();
+    const doc = await InfluencerModel.findOne({ loginUsername: lookup }).lean<InfluencerDoc>();
+    if (!doc || !doc.loginPasswordHash) {
+      // Dummy compare to avoid timing leaks
+      await bcrypt.compare(
+        submittedPass,
+        "$2a$10$CwTycUXWue0Thq9StjUM0uJ8.J8rbpQk6cQpjpKkR2QvUnr/V2cha",
+      );
+      return null;
+    }
+    const ok = await bcrypt.compare(submittedPass, doc.loginPasswordHash);
+    return ok ? doc : null;
+  }
+
   async handleLogin(request: NextRequest): Promise<NextResponse> {
     let body: { username?: string; password?: string };
     try {
@@ -159,7 +184,7 @@ class AuthController {
       );
     }
 
-    // Walk env first (cheap), then DB (bcrypt). Always do the DB call so an
+    // Walk env first (cheap), then DB (bcrypt). Always do all DB calls so an
     // attacker can't tell from response time whether their guess hit env.
     const envHit = this.matchEnv(submittedUser, submittedPass, envSlots);
     let dbHit: AgencyDoc | null = null;
@@ -168,6 +193,15 @@ class AuthController {
     } catch (err) {
       console.error("[auth] agency lookup failed", err);
       // Don't leak DB failure as 500 — fall through and treat as no DB match.
+    }
+
+    let influencerHit: InfluencerDoc | null = null;
+    if (!dbHit) {
+      try {
+        influencerHit = await this.matchInfluencer(submittedUser, submittedPass);
+      } catch (err) {
+        console.error("[auth] influencer lookup failed", err);
+      }
     }
 
     let matched: MatchedSlot | null = null;
@@ -179,18 +213,31 @@ class AuthController {
         username: dbHit.ownerUsername,
         agencyId: dbHit._id.toString(),
       };
+    } else if (influencerHit) {
+      matched = {
+        role: "influencer",
+        username: influencerHit.loginUsername ?? submittedUser.toLowerCase(),
+        agencyId: influencerHit.agencyId.toString(),
+        influencerId: influencerHit._id.toString(),
+      };
     }
 
     if (!matched) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
-    const token = await signSession(matched.username, matched.role, matched.agencyId);
+    const token = await signSession(
+      matched.username,
+      matched.role,
+      matched.agencyId,
+      matched.influencerId,
+    );
     const res = NextResponse.json({
       user: {
         username: matched.username,
         role: matched.role,
         ...(matched.agencyId ? { agencyId: matched.agencyId } : {}),
+        ...(matched.influencerId ? { influencerId: matched.influencerId } : {}),
       },
     });
     res.cookies.set(SESSION_COOKIE, token, sessionCookieOptions);
@@ -214,6 +261,7 @@ class AuthController {
         username: session.sub,
         role: session.role,
         ...(session.agencyId ? { agencyId: session.agencyId } : {}),
+        ...(session.influencerId ? { influencerId: session.influencerId } : {}),
       },
     });
   }

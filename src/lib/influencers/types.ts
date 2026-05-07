@@ -17,6 +17,8 @@ export interface Influencer {
   _id: string;
   name: string;
   handles: InfluencerHandles;
+  /** Set when the influencer has portal login credentials. */
+  loginUsername?: string | null;
   createdAt: string;
   updatedAt: string;
 }

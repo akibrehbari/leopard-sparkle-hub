@@ -22,7 +22,7 @@ function LoginForm() {
     login.mutate(
       { username, password },
       {
-        onSuccess: () => router.replace(next),
+        onSuccess: (user) => router.replace(user.role === "influencer" ? "/influencer" : next),
       },
     );
   };

@@ -29,8 +29,8 @@ import { parseWeekKey } from "@/lib/utils/week";
 import type { UpsertEntryBody, WeeklyEntry } from "@/lib/entries/types";
 
 class EntriesController {
-  private toJson(doc: WeeklyEntryDoc): WeeklyEntry {
-    const data: Record<string, number> = {};
+  private toJson(doc: WeeklyEntryDoc, stripSpend = false): WeeklyEntry {
+    let data: Record<string, number> = {};
     if (doc.data instanceof Map) {
       for (const [k, v] of doc.data.entries()) data[k] = v;
     } else if (doc.data && typeof doc.data === "object") {
@@ -38,6 +38,7 @@ class EntriesController {
         if (typeof v === "number") data[k] = v;
       }
     }
+    if (stripSpend) data = this.stripSpendFields(data);
     return {
       _id: doc._id.toString(),
       influencerId: doc.influencerId.toString(),
@@ -47,6 +48,14 @@ class EntriesController {
       createdAt: doc.createdAt.toISOString(),
       updatedAt: doc.updatedAt.toISOString(),
     };
+  }
+
+  private stripSpendFields(data: Record<string, number>): Record<string, number> {
+    const out: Record<string, number> = {};
+    for (const [k, v] of Object.entries(data)) {
+      if (!k.startsWith("spend_")) out[k] = v;
+    }
+    return out;
   }
 
   private errorResponse(err: unknown, fallbackStatus = 500): NextResponse {
@@ -80,6 +89,7 @@ class EntriesController {
   async handleList(
     request: NextRequest,
     agencyId: string,
+    opts: { pinnedInfluencerId?: string; stripSpend?: boolean } = {},
   ): Promise<NextResponse> {
     try {
       const sp = new URL(request.url).searchParams;
@@ -87,12 +97,20 @@ class EntriesController {
         agencyId: new mongoose.Types.ObjectId(agencyId),
       };
 
-      const influencerId = sp.get("influencerId");
-      if (influencerId) {
-        if (!mongoose.isValidObjectId(influencerId)) {
-          return NextResponse.json({ error: "Invalid influencerId" }, { status: 400 });
+      if (opts.pinnedInfluencerId) {
+        // Influencer sessions: always scope to their own id regardless of query params.
+        if (!mongoose.isValidObjectId(opts.pinnedInfluencerId)) {
+          return NextResponse.json({ error: "Invalid pinnedInfluencerId" }, { status: 400 });
         }
-        filter.influencerId = new mongoose.Types.ObjectId(influencerId);
+        filter.influencerId = new mongoose.Types.ObjectId(opts.pinnedInfluencerId);
+      } else {
+        const influencerId = sp.get("influencerId");
+        if (influencerId) {
+          if (!mongoose.isValidObjectId(influencerId)) {
+            return NextResponse.json({ error: "Invalid influencerId" }, { status: 400 });
+          }
+          filter.influencerId = new mongoose.Types.ObjectId(influencerId);
+        }
       }
 
       const platform = sp.get("platform");
@@ -119,7 +137,7 @@ class EntriesController {
 
       await connectMongo();
       const docs = await WeeklyEntryModel.find(filter).lean<WeeklyEntryDoc[]>();
-      return NextResponse.json({ data: docs.map((d) => this.toJson(d)) });
+      return NextResponse.json({ data: docs.map((d) => this.toJson(d, opts.stripSpend)) });
     } catch (err) {
       return this.errorResponse(err);
     }
