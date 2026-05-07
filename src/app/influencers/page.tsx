@@ -12,7 +12,7 @@
  */
 
 import { useState } from "react";
-import { KeyRound, Loader2, Plus, Trash2, Pencil, Save, X } from "lucide-react";
+import { CheckCheck, Copy, KeyRound, Loader2, Plus, RefreshCw, Trash2, Pencil, Save, X } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -280,9 +280,9 @@ function InfluencerRow({
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
-  const [loginUsername, setLoginUsername] = useState(influencer.loginUsername ?? "");
-  const [loginPassword, setLoginPassword] = useState("");
+  const [generated, setGenerated] = useState<{ username: string; password: string } | null>(null);
   const [loginSaving, setLoginSaving] = useState(false);
+  const [copied, setCopied] = useState<"username" | "password" | "both" | null>(null);
   const [draft, setDraft] = useState<Record<PlatformKey, string>>(() =>
     PLATFORM_KEYS.reduce(
       (acc, k) => {
@@ -306,24 +306,37 @@ function InfluencerRow({
     setEditing(false);
   };
 
-  const saveCredentials = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!loginUsername.trim() || !loginPassword) return;
+  const generateUsername = (name: string) =>
+    name.toLowerCase().replace(/[^a-z0-9]+/g, ".").replace(/^\.|\.$/, "");
+
+  const randomPassword = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+    return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+  };
+
+  const generateCredentials = async () => {
+    const username = generateUsername(influencer.name);
+    const password = randomPassword();
     setLoginSaving(true);
     try {
       await api.post(`/api/influencers/${influencer._id}/credentials`, {
-        loginUsername: loginUsername.trim(),
-        loginPassword,
+        loginUsername: username,
+        loginPassword: password,
       });
-      toast({ title: "Login credentials saved" });
-      setLoginOpen(false);
-      setLoginPassword("");
+      setGenerated({ username, password });
+      setCopied(null);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to save credentials";
+      const msg = err instanceof Error ? err.message : "Failed to generate credentials";
       toast({ title: "Error", description: msg, variant: "destructive" });
     } finally {
       setLoginSaving(false);
     }
+  };
+
+  const copyToClipboard = async (text: string, field: "username" | "password" | "both") => {
+    await navigator.clipboard.writeText(text);
+    setCopied(field);
+    setTimeout(() => setCopied(null), 2000);
   };
 
   const save = () => {
@@ -438,55 +451,78 @@ function InfluencerRow({
       </TableCell>
       )}
 
-      {/* Set login credentials dialog */}
-      <Dialog open={loginOpen} onOpenChange={setLoginOpen}>
+      {/* Portal credentials dialog */}
+      <Dialog open={loginOpen} onOpenChange={(o) => { setLoginOpen(o); if (!o) setGenerated(null); }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Set portal login — {influencer.name}</DialogTitle>
+            <DialogTitle>Portal login — {influencer.name}</DialogTitle>
             <DialogDescription>
-              The influencer will use these credentials to log in at{" "}
-              <strong>/login</strong> and view their personal portal.
-              {influencer.loginUsername && (
-                <span className="block mt-1 text-xs">
-                  Current username: <strong>{influencer.loginUsername}</strong>
-                </span>
-              )}
+              {generated
+                ? "Credentials generated. Share these with the influencer."
+                : influencer.loginUsername
+                  ? <>Current username: <strong>{influencer.loginUsername}</strong>. Regenerate to issue new credentials.</>
+                  : "Generate a username and password for this influencer's personal portal."}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={saveCredentials} className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label htmlFor={`lu-${influencer._id}`}>Username</Label>
-              <Input
-                id={`lu-${influencer._id}`}
-                value={loginUsername}
-                onChange={(e) => setLoginUsername(e.target.value)}
-                placeholder="e.g. livy_portal"
-                required
-              />
+
+          {generated ? (
+            <div className="space-y-3 py-2">
+              {/* Username row */}
+              <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Username</div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-sm font-semibold text-foreground">{generated.username}</span>
+                  <button
+                    onClick={() => copyToClipboard(generated.username, "username")}
+                    className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                    title="Copy username"
+                  >
+                    {copied === "username" ? <CheckCheck className="size-4 text-success" /> : <Copy className="size-4" />}
+                  </button>
+                </div>
+              </div>
+              {/* Password row */}
+              <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Password</div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-sm font-semibold text-foreground tracking-widest">{generated.password}</span>
+                  <button
+                    onClick={() => copyToClipboard(generated.password, "password")}
+                    className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                    title="Copy password"
+                  >
+                    {copied === "password" ? <CheckCheck className="size-4 text-success" /> : <Copy className="size-4" />}
+                  </button>
+                </div>
+              </div>
+              {/* Copy both */}
+              <button
+                onClick={() => copyToClipboard(`Username: ${generated.username}\nPassword: ${generated.password}`, "both")}
+                className="w-full text-xs text-muted-foreground hover:text-foreground flex items-center justify-center gap-1.5 py-1 transition-colors"
+              >
+                {copied === "both" ? <CheckCheck className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
+                {copied === "both" ? "Copied!" : "Copy both"}
+              </button>
+              <p className="text-[11px] text-muted-foreground text-center">
+                This password won&apos;t be shown again. Copy it now.
+              </p>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => { setGenerated(null); generateCredentials(); }} disabled={loginSaving}>
+                  <RefreshCw className="size-3.5" />
+                  Regenerate
+                </Button>
+                <Button onClick={() => { setLoginOpen(false); setGenerated(null); }}>Done</Button>
+              </DialogFooter>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor={`lp-${influencer._id}`}>
-                New password{influencer.loginUsername ? " (leave blank to keep current)" : ""}
-              </Label>
-              <Input
-                id={`lp-${influencer._id}`}
-                type="password"
-                value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
-                placeholder="••••••••"
-                required={!influencer.loginUsername}
-              />
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="ghost" onClick={() => setLoginOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={loginSaving || !loginUsername.trim()}>
-                {loginSaving && <Loader2 className="size-4 animate-spin" />}
-                Save credentials
+          ) : (
+            <DialogFooter className="pt-2">
+              <Button variant="ghost" onClick={() => setLoginOpen(false)}>Cancel</Button>
+              <Button onClick={generateCredentials} disabled={loginSaving}>
+                {loginSaving ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
+                {loginSaving ? "Generating…" : influencer.loginUsername ? "Regenerate credentials" : "Generate credentials"}
               </Button>
             </DialogFooter>
-          </form>
+          )}
         </DialogContent>
       </Dialog>
     </TableRow>
