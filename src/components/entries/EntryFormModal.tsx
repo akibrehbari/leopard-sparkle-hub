@@ -127,8 +127,14 @@ export function EntryFormModal({
       // note field alongside each metric
       shape[`_note_${f.key}`] = z.string().optional();
     }
+    // chatter note per acquisition source (OnlyFans only)
+    if (platform === "onlyfans") {
+      for (const src of ACQUISITION_PLATFORM_KEYS) {
+        shape[`_chatternote_${src}`] = z.string().optional();
+      }
+    }
     return z.object(shape);
-  }, [platformDef]);
+  }, [platformDef, platform]);
 
   type FormValues = Record<string, number | string | undefined>;
 
@@ -153,6 +159,11 @@ export function EntryFormModal({
       }
       defaults[`_note_${f.key}`] = existingEntry?.notes?.[f.key] ?? "";
     }
+    if (platform === "onlyfans") {
+      for (const src of ACQUISITION_PLATFORM_KEYS) {
+        defaults[`_chatternote_${src}`] = existingEntry?.notes?.[`chatter_${src}`] ?? "";
+      }
+    }
     form.reset(defaults);
   }, [open, existingEntry, platformDef, form]);
 
@@ -163,7 +174,10 @@ export function EntryFormModal({
     const data: Record<string, number | string> = {};
     const notes: Record<string, string> = {};
     for (const [k, v] of Object.entries(values)) {
-      if (k.startsWith("_note_")) {
+      if (k.startsWith("_chatternote_")) {
+        const src = k.slice(13);
+        if (typeof v === "string" && v.trim()) notes[`chatter_${src}`] = v.trim();
+      } else if (k.startsWith("_note_")) {
         const fieldKey = k.slice(6);
         if (typeof v === "string" && v.trim()) notes[fieldKey] = v.trim();
       } else {
@@ -506,6 +520,18 @@ function OnlyFansFields({
               {!hideFinancials && spdField?.hint && (
                 <p className="text-[11px] text-muted-foreground">{spdField.hint}</p>
               )}
+              <div className="space-y-1 pt-1">
+                <Label htmlFor={`chatter-${src}`} className="text-[11px]">
+                  Note from chatter
+                </Label>
+                <textarea
+                  id={`chatter-${src}`}
+                  placeholder="Add chatter notes… (optional)"
+                  rows={2}
+                  className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs text-muted-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+                  {...form.register(`_chatternote_${src}`)}
+                />
+              </div>
             </div>
           </fieldset>
         );
