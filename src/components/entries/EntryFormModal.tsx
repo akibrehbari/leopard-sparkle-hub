@@ -442,47 +442,6 @@ function OnlyFansFields({
 
   return (
     <div className="space-y-4">
-      {/* Subscribers — global cumulative count synced from Infloww */}
-      {subscribersField && (
-        <div className="rounded-lg border border-border bg-secondary/20 p-3 space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <Label htmlFor="f-subscribers" className="text-xs font-semibold uppercase tracking-wider">
-              Total subscribers
-            </Label>
-            <button
-              type="button"
-              onClick={syncSubscribers}
-              disabled={syncState === "loading"}
-              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-              title="Fetch from Infloww"
-            >
-              <RefreshCw className={`size-3 ${syncState === "loading" ? "animate-spin" : ""}`} />
-              Sync from Infloww
-            </button>
-          </div>
-          <Input
-            id="f-subscribers"
-            type="number"
-            inputMode="numeric"
-            min={0}
-            step={1}
-            placeholder="e.g. 1250"
-            {...form.register("subscribers")}
-          />
-          {subscribersField.hint && (
-            <p className="text-[11px] text-muted-foreground">{subscribersField.hint}</p>
-          )}
-          {syncError && (
-            <p className="text-[11px] text-destructive">{syncError}</p>
-          )}
-          {form.formState.errors["subscribers"] && (
-            <p className="text-[11px] text-destructive">
-              {String(form.formState.errors["subscribers"].message)}
-            </p>
-          )}
-        </div>
-      )}
-
       {!hideFinancials && ACQUISITION_PLATFORM_KEYS.map((src) => {
         const revKey = onlyFansFieldKey("revenue", src);
         const spdKey = onlyFansFieldKey("spend", src);
@@ -536,6 +495,47 @@ function OnlyFansFields({
           </fieldset>
         );
       })}
+
+      {/* Subscribers — placed after platform sections */}
+      {subscribersField && (
+        <div className="rounded-lg border border-border bg-secondary/20 p-3 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="f-subscribers" className="text-xs font-semibold uppercase tracking-wider">
+              Total subscribers
+            </Label>
+            <button
+              type="button"
+              onClick={syncSubscribers}
+              disabled={syncState === "loading"}
+              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              title="Fetch from Infloww"
+            >
+              <RefreshCw className={`size-3 ${syncState === "loading" ? "animate-spin" : ""}`} />
+              Sync from Infloww
+            </button>
+          </div>
+          <Input
+            id="f-subscribers"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            step={1}
+            placeholder="e.g. 1250"
+            {...form.register("subscribers")}
+          />
+          {subscribersField.hint && (
+            <p className="text-[11px] text-muted-foreground">{subscribersField.hint}</p>
+          )}
+          {syncError && (
+            <p className="text-[11px] text-destructive">{syncError}</p>
+          )}
+          {form.formState.errors["subscribers"] && (
+            <p className="text-[11px] text-destructive">
+              {String(form.formState.errors["subscribers"].message)}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
