@@ -88,6 +88,12 @@ function onlyFansFields(): PlatformField[] {
   ];
   for (const src of ACQUISITION_PLATFORM_KEYS) {
     out.push({
+      key: `subs_${src}`,
+      label: `New subs from ${SOURCE_LABEL[src]}`,
+      kind: "count",
+      hint: `Subscribers gained this week from ${SOURCE_LABEL[src]}.`,
+    });
+    out.push({
       key: `revenue_${src}`,
       label: `Revenue from ${SOURCE_LABEL[src]}`,
       kind: "currencyCents",
@@ -108,7 +114,7 @@ function onlyFansFields(): PlatformField[] {
  * Keep the form/derive layers decoupled from the literal key strings.
  */
 export function onlyFansFieldKey(
-  metric: "revenue" | "spend",
+  metric: "revenue" | "spend" | "subs",
   source: AcquisitionPlatformKey,
 ): string {
   return `${metric}_${source}`;

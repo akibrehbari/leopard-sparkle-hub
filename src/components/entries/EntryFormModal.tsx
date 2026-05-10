@@ -442,12 +442,14 @@ function OnlyFansFields({
 
   return (
     <div className="space-y-4">
-      {!hideFinancials && ACQUISITION_PLATFORM_KEYS.map((src) => {
+      {ACQUISITION_PLATFORM_KEYS.map((src) => {
+        const subsKey = onlyFansFieldKey("subs", src);
         const revKey = onlyFansFieldKey("revenue", src);
         const spdKey = onlyFansFieldKey("spend", src);
+        const subsField = fieldByKey.get(subsKey);
         const revField = fieldByKey.get(revKey);
         const spdField = fieldByKey.get(spdKey);
-        if (!revField || !spdField) return null;
+        if (!subsField) return null;
 
         const revCents = existingData?.[revKey];
         const spdCents = existingData?.[spdKey];
@@ -468,30 +470,43 @@ function OnlyFansFields({
               <span className="text-xs font-semibold uppercase tracking-wider text-foreground">
                 {SOURCE_LABELS[src]}
               </span>
-              {existingData &&
+              {!hideFinancials && existingData &&
                 (typeof revCents === "number" || typeof spdCents === "number") && (
                   <span className="text-[10px] text-muted-foreground">
                     · net {formatUSD(subtotal, { fractional: true })}
                   </span>
                 )}
             </legend>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-1">
-              <CompactCurrencyInput
-                field={revField}
-                form={form}
-                label="Revenue"
-              />
-              <CompactCurrencyInput
-                field={spdField}
-                form={form}
-                label="Total spend"
-              />
+            <div className="space-y-3 mt-1">
+              <div className="space-y-1">
+                <Label htmlFor={`f-${subsKey}`} className="text-[11px]">
+                  Subs this week
+                </Label>
+                <Input
+                  id={`f-${subsKey}`}
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  step={1}
+                  placeholder="0"
+                  {...form.register(subsKey)}
+                />
+                {form.formState.errors[subsKey] && (
+                  <p className="text-[10px] text-destructive">
+                    {String(form.formState.errors[subsKey]?.message)}
+                  </p>
+                )}
+              </div>
+              {!hideFinancials && revField && spdField && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <CompactCurrencyInput field={revField} form={form} label="Revenue" />
+                  <CompactCurrencyInput field={spdField} form={form} label="Total spend" />
+                </div>
+              )}
+              {!hideFinancials && spdField?.hint && (
+                <p className="text-[11px] text-muted-foreground">{spdField.hint}</p>
+              )}
             </div>
-            {(revField.hint || spdField.hint) && (
-              <p className="text-[11px] text-muted-foreground mt-2">
-                {spdField.hint ?? revField.hint}
-              </p>
-            )}
           </fieldset>
         );
       })}
