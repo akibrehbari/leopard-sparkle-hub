@@ -331,7 +331,7 @@ class AgenciesController {
       } catch (err) {
         if (this.isDuplicateKeyError(err)) {
           return NextResponse.json(
-            { error: "An agency with that name or owner username already exists" },
+            { error: this.duplicateKeyMessage(err) },
             { status: 409 },
           );
         }
@@ -416,7 +416,7 @@ class AgenciesController {
       } catch (err) {
         if (this.isDuplicateKeyError(err)) {
           return NextResponse.json(
-            { error: "An agency with that name or owner username already exists" },
+            { error: this.duplicateKeyMessage(err) },
             { status: 409 },
           );
         }
@@ -526,6 +526,19 @@ class AgenciesController {
       "code" in err &&
       (err as { code?: number }).code === 11000
     );
+  }
+
+  private duplicateKeyMessage(err: unknown): string {
+    if (
+      typeof err === "object" &&
+      err !== null &&
+      "keyPattern" in err
+    ) {
+      const kp = (err as { keyPattern?: Record<string, unknown> }).keyPattern ?? {};
+      if ("ownerUsername" in kp) return "That owner username is already taken by another agency.";
+      if ("name" in kp) return "An agency with that name already exists.";
+    }
+    return "An agency with that name or owner username already exists.";
   }
 }
 

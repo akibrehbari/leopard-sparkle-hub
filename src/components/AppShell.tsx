@@ -21,7 +21,6 @@ import { Suspense } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   AlertCircle,
-  Building2,
   Layers,
   ListChecks,
   LogOut,
@@ -32,7 +31,6 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AgencySwitcher } from "@/components/AgencySwitcher";
 import { useInfluencers } from "@/lib/influencers/influencers.hooks";
 import { useLogout, useSession } from "@/lib/auth/auth.hooks";
 import { isAdmin, isEditorOrAdmin } from "@/lib/auth/roles";
@@ -60,13 +58,13 @@ function BrandHeader() {
     <div className="px-6 py-5 border-b border-sidebar-border">
       <div className="flex items-center gap-2.5">
         <div className="size-9 rounded-lg bg-gradient-primary grid place-items-center shadow-glow">
-          <span className="text-primary-foreground font-bold text-sm">eL</span>
+          <span className="text-primary-foreground font-bold text-sm">C</span>
         </div>
         <div>
           <div className="text-sm font-semibold text-sidebar-foreground leading-tight">
-            eLeopards
+            Cuhvet
           </div>
-          <div className="text-[11px] text-muted-foreground">Clients Dashboard</div>
+          <div className="text-[11px] text-muted-foreground">Admin Dashboard</div>
         </div>
       </div>
     </div>
@@ -94,29 +92,27 @@ function SidebarBody() {
   const isAllModelsActive =
     isDashboard && (!selectedDashboardId || selectedDashboardId === "all");
 
-  const showAgencyAdmin = isAdmin(session?.role);
   const showTracker = isEditorOrAdmin(session?.role);
+  const showWorkers = isAdmin(session?.role);
 
   return (
     <>
-      <AgencySwitcher />
-
-      <nav className="px-3 pt-1 pb-4 space-y-1">
+      <nav className="px-3 pt-4 pb-4 space-y-1">
         <SectionLabel>Workspace</SectionLabel>
-        {showAgencyAdmin && (
-          <NavRow
-            href="/agencies"
-            icon={Building2}
-            label="Agencies"
-            active={pathname.startsWith("/agencies")}
-          />
-        )}
         <NavRow
           href="/influencers"
           icon={Users}
           label="Influencers"
           active={pathname.startsWith("/influencers")}
         />
+        {showWorkers && (
+          <NavRow
+            href="/workers"
+            icon={Layers}
+            label="Workers"
+            active={pathname.startsWith("/workers")}
+          />
+        )}
         <NavRow
           href="/subreddits"
           icon={MessagesSquare}
@@ -221,7 +217,7 @@ function SidebarBody() {
           Sign out
         </Button>
         <div className="px-3 pt-1 text-[10px] text-muted-foreground border-t border-sidebar-border/50">
-          v0.3 · eLeopards · Internal use
+          Cuhvet · Internal use
         </div>
       </div>
     </>

@@ -44,13 +44,19 @@ export async function proxy(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   const session = await verifySession(token);
   if (session) {
-    // Influencer sessions are locked to /influencer* — redirect everything else.
-    if (
-      session.role === "influencer" &&
-      !pathname.startsWith("/influencer") &&
-      !pathname.startsWith("/api/")
-    ) {
-      return NextResponse.redirect(new URL("/influencer", request.url));
+    // Influencer sessions are locked to /influencer/[username].
+    if (session.role === "influencer" && !pathname.startsWith("/api/")) {
+      const portalBase = `/influencer/${session.sub}`;
+      if (!pathname.startsWith(portalBase)) {
+        return NextResponse.redirect(new URL(portalBase, request.url));
+      }
+    }
+    // Worker sessions are locked to /worker/[username].
+    if (session.role === "worker" && !pathname.startsWith("/api/")) {
+      const portalBase = `/worker/${session.sub}`;
+      if (!pathname.startsWith(portalBase)) {
+        return NextResponse.redirect(new URL(portalBase, request.url));
+      }
     }
     return NextResponse.next();
   }

@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { DASHBOARD_RANGES, type DashboardRange } from "@/lib/utils/range";
 import { Download, FileDown, Link2, Loader2, Search } from "lucide-react";
 import { AgencyTopbarLinks } from "./AgencyTopbarLinks";
+import { QuickAddButtons } from "./QuickAddButtons";
 
 interface Props {
   title: string;
@@ -52,6 +53,7 @@ export function Topbar({
       </div>
       <div className="flex items-center gap-2 no-print">
         <AgencyTopbarLinks />
+        <QuickAddButtons />
         <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary/50 border border-border text-sm text-muted-foreground">
           <Search className="size-4" />
           <span>Search…</span>

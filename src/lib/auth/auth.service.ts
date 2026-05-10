@@ -13,6 +13,8 @@ export interface SessionUser {
   agencyId?: string;
   /** Set only for influencer sessions. */
   influencerId?: string;
+  /** Set only for worker sessions. */
+  workerId?: string;
 }
 
 export interface LoginParams {

@@ -9,6 +9,8 @@ export interface WeeklyEntry {
   /** ISO week key in PKT, e.g. "2026-W18". */
   weekKey: string;
   data: Record<string, number>;
+  /** Free-text note per field key. */
+  notes: Record<string, string>;
   createdAt: string;
   updatedAt: string;
 }
@@ -19,6 +21,7 @@ export interface UpsertEntryBody {
   platform: PlatformKey;
   weekKey: string;
   data: Record<string, number | string>;
+  notes?: Record<string, string>;
 }
 
 /** Filter for GET /api/entries. */

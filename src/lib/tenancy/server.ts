@@ -40,6 +40,8 @@ export interface AgencyContext {
   role: Role;
   /** Only set for influencer sessions — the influencer's own document id. */
   influencerId?: string;
+  /** Only set for worker sessions — the worker's own document id. */
+  workerId?: string;
 }
 
 /**
@@ -81,37 +83,31 @@ export async function resolveAgencyContext(
     return { agencyId: session.agencyId, role: session.role, influencerId: session.influencerId };
   }
 
-  if (session.role === "agency_owner") {
-    if (!session.agencyId) {
-      return NextResponse.json(
-        { error: "Session missing agency binding" },
-        { status: 401 },
-      );
+  if (session.role === "worker") {
+    if (!session.agencyId || !session.workerId) {
+      return NextResponse.json({ error: "Session missing bindings" }, { status: 401 });
     }
-    return { agencyId: session.agencyId, role: session.role };
+    return { agencyId: session.agencyId, role: session.role, workerId: session.workerId };
   }
 
-  // admin / editor: read cookie, validate, otherwise prompt.
+  // admin / editor: read cookie; if missing, auto-pick the first agency.
   const cookie = request.cookies.get(ACTIVE_AGENCY_COOKIE)?.value?.trim();
-  if (!cookie) {
+  if (cookie && (await isKnownAgency(cookie))) {
+    return { agencyId: cookie, role: session.role };
+  }
+
+  // No valid cookie — pick the first available agency automatically.
+  await connectMongo();
+  const first = await AgencyModel.findOne({}).sort({ createdAt: 1 }).lean<{ _id: mongoose.Types.ObjectId }>();
+  if (!first) {
     return NextResponse.json(
-      {
-        error: "No active agency selected",
-        code: "no_active_agency",
-      },
+      { error: "No agency found. Create one first.", code: "no_active_agency" },
       { status: 400 },
     );
   }
-  if (!(await isKnownAgency(cookie))) {
-    return NextResponse.json(
-      {
-        error: "Active agency no longer exists. Pick another from the switcher.",
-        code: "no_active_agency",
-      },
-      { status: 400 },
-    );
-  }
-  return { agencyId: cookie, role: session.role };
+  const autoId = first._id.toString();
+  knownAgencyCache.set(autoId, Date.now());
+  return { agencyId: autoId, role: session.role };
 }
 
 /**

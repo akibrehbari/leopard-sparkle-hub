@@ -24,6 +24,8 @@ export interface WeeklyEntryDoc {
   platform: string;
   weekKey: string;
   data: Map<string, number>;
+  /** Optional free-text note per field key, e.g. { followers: "spike due to viral post" } */
+  notes: Map<string, string>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -55,6 +57,11 @@ const WeeklyEntrySchema = new Schema<WeeklyEntryDoc>(
     data: {
       type: Map,
       of: Number,
+      default: {},
+    },
+    notes: {
+      type: Map,
+      of: String,
       default: {},
     },
   },

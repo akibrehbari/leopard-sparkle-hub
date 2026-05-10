@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import { connectMongo } from "@/lib/db/mongo";
+import { SESSION_COOKIE, verifySession } from "@/lib/auth/session";
 import { InfluencerModel, type InfluencerDoc } from "./influencers.model";
 import { PLATFORM_KEYS } from "@/lib/platforms/registry";
 import type {
@@ -35,6 +36,10 @@ class InfluencersController {
       name: doc.name,
       handles,
       loginUsername: doc.loginUsername ?? null,
+      inflowwCreatorId: doc.inflowwCreatorId ?? null,
+      marketingNotes: doc.marketingNotes ?? null,
+      ofNotes: doc.ofNotes ?? null,
+      trackerNotes: doc.trackerNotes ?? null,
       createdAt: doc.createdAt.toISOString(),
       updatedAt: doc.updatedAt.toISOString(),
     };
@@ -121,12 +126,37 @@ class InfluencersController {
       if (!name) {
         return NextResponse.json({ error: "Name is required" }, { status: 400 });
       }
+
+      const loginUsername = body.loginUsername?.trim().toLowerCase() || null;
+      const loginPassword = body.loginPassword?.trim() || null;
+
+      if (loginUsername && !loginPassword) {
+        return NextResponse.json(
+          { error: "Password is required when setting a username" },
+          { status: 400 },
+        );
+      }
+
       await connectMongo();
-      const doc = await InfluencerModel.create({
+
+      if (loginUsername) {
+        const conflict = await InfluencerModel.findOne({ loginUsername }).lean();
+        if (conflict) {
+          return NextResponse.json({ error: "Username already taken" }, { status: 409 });
+        }
+      }
+
+      const createData: Record<string, unknown> = {
         agencyId: new mongoose.Types.ObjectId(agencyId),
         name,
         handles: this.sanitizeHandles(body.handles),
-      });
+      };
+      if (loginUsername && loginPassword) {
+        createData.loginUsername = loginUsername;
+        createData.loginPasswordHash = await bcrypt.hash(loginPassword, 10);
+      }
+
+      const doc = await InfluencerModel.create(createData);
       return NextResponse.json(
         { data: this.toJson(doc.toObject() as InfluencerDoc) },
         { status: 201 },
@@ -155,6 +185,39 @@ class InfluencersController {
         for (const key of PLATFORM_KEYS) {
           update[`handles.${key}`] = sanitized[key] ?? null;
         }
+      }
+      if ("inflowwCreatorId" in body) {
+        const raw = body.inflowwCreatorId;
+        update.inflowwCreatorId =
+          typeof raw === "string" && raw.trim() ? raw.trim() : null;
+      }
+      if (body.loginUsername !== undefined) {
+        const uname = body.loginUsername?.trim().toLowerCase() || null;
+        if (uname) {
+          const conflict = await InfluencerModel.findOne({
+            loginUsername: uname,
+            _id: { $ne: new mongoose.Types.ObjectId(id) },
+          }).lean();
+          if (conflict) {
+            return NextResponse.json({ error: "Username already taken" }, { status: 409 });
+          }
+        }
+        update.loginUsername = uname;
+      }
+      if (body.loginPassword?.trim()) {
+        update.loginPasswordHash = await bcrypt.hash(body.loginPassword.trim(), 10);
+      }
+      if ("marketingNotes" in body) {
+        const v = body.marketingNotes;
+        update.marketingNotes = typeof v === "string" && v.trim() ? v.slice(0, 2000) : null;
+      }
+      if ("ofNotes" in body) {
+        const v = body.ofNotes;
+        update.ofNotes = typeof v === "string" && v.trim() ? v.slice(0, 2000) : null;
+      }
+      if ("trackerNotes" in body) {
+        const v = (body as { trackerNotes?: string | null }).trackerNotes;
+        update.trackerNotes = typeof v === "string" && v.trim() ? v.slice(0, 5000) : null;
       }
       if (Object.keys(update).length === 0) {
         return NextResponse.json({ error: "Nothing to update" }, { status: 400 });

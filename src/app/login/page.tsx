@@ -22,7 +22,14 @@ function LoginForm() {
     login.mutate(
       { username, password },
       {
-        onSuccess: (user) => router.replace(user.role === "influencer" ? "/influencer" : next),
+        onSuccess: (user) =>
+          router.replace(
+            user.role === "influencer"
+              ? `/influencer/${user.username}`
+              : user.role === "worker"
+                ? `/worker/${user.username}`
+                : next,
+          ),
       },
     );
   };
@@ -35,9 +42,9 @@ function LoginForm() {
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
           <div className="size-12 rounded-xl bg-gradient-primary grid place-items-center shadow-glow mb-3">
-            <span className="text-primary-foreground font-bold text-base">eL</span>
+            <span className="text-primary-foreground font-bold text-base">C</span>
           </div>
-          <h1 className="text-lg font-semibold">eLeopards Dashboard</h1>
+          <h1 className="text-lg font-semibold">Cuhvet Admin</h1>
           <p className="text-xs text-muted-foreground mt-0.5">Sign in to continue</p>
         </div>
 
@@ -93,7 +100,7 @@ function LoginForm() {
         </form>
 
         <p className="text-center text-[11px] text-muted-foreground mt-4">
-          Internal use only · eLeopards
+          Internal use only · Cuhvet
         </p>
       </div>
     </div>

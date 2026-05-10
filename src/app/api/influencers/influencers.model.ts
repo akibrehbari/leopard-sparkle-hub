@@ -28,6 +28,13 @@ export interface InfluencerDoc {
   loginUsername?: string | null;
   /** bcrypt hash of the portal login password. */
   loginPasswordHash?: string | null;
+  /** Infloww creator ID used to sync OnlyFans subscriber count. */
+  inflowwCreatorId?: string | null;
+  /** Internal notes written by workers/admins — NOT shown to the influencer. */
+  marketingNotes?: string | null;
+  ofNotes?: string | null;
+  /** Weekly tracker notes — editable by data-entry workers, shown in their portal. */
+  trackerNotes?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -56,6 +63,10 @@ const InfluencerSchema = new Schema<InfluencerDoc>(
       unique: true,
     },
     loginPasswordHash: { type: String, default: null },
+    inflowwCreatorId: { type: String, default: null, trim: true },
+    marketingNotes: { type: String, default: null },
+    ofNotes: { type: String, default: null },
+    trackerNotes: { type: String, default: null },
   },
   { timestamps: true, collection: "influencers" },
 );

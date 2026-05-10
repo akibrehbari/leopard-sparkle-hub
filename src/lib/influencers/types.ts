@@ -19,6 +19,13 @@ export interface Influencer {
   handles: InfluencerHandles;
   /** Set when the influencer has portal login credentials. */
   loginUsername?: string | null;
+  /** Infloww creator ID — used to auto-fetch OnlyFans subscriber count. */
+  inflowwCreatorId?: string | null;
+  /** Internal notes written by workers/admins — NOT visible to the influencer. */
+  marketingNotes?: string | null;
+  ofNotes?: string | null;
+  /** Weekly tracker notes editable by data-entry workers. */
+  trackerNotes?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -27,10 +34,18 @@ export interface Influencer {
 export interface CreateInfluencerBody {
   name: string;
   handles?: InfluencerHandles;
+  loginUsername?: string;
+  loginPassword?: string;
 }
 
-/** Body for PATCH /api/influencers/:id (edit handles / rename). */
+/** Body for PATCH /api/influencers/:id (edit). */
 export interface UpdateInfluencerBody {
   name?: string;
   handles?: InfluencerHandles;
+  inflowwCreatorId?: string | null;
+  loginUsername?: string;
+  loginPassword?: string;
+  marketingNotes?: string | null;
+  ofNotes?: string | null;
+  trackerNotes?: string | null;
 }

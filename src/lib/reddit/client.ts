@@ -19,7 +19,7 @@ import type {
 } from "./types";
 
 const REDDIT_BASE = "https://www.reddit.com";
-const USER_AGENT = "eleopards-dashboard/1.0 (internal-tooling)";
+const USER_AGENT = "cuhvet-dashboard/1.0 (internal-tooling)";
 /** Per-request timeout. Reddit usually responds in <1s; 8s is generous. */
 const REQUEST_TIMEOUT_MS = 8_000;
 

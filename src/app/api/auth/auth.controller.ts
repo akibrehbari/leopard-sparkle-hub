@@ -33,6 +33,7 @@ import type { Role } from "@/lib/auth/roles";
 import { connectMongo } from "@/lib/db/mongo";
 import { AgencyModel, type AgencyDoc } from "@/app/api/agencies/agencies.model";
 import { InfluencerModel, type InfluencerDoc } from "@/app/api/influencers/influencers.model";
+import { WorkerModel, type WorkerDoc } from "@/app/api/workers/workers.model";
 
 interface EnvCredentialSlot {
   kind: "env";
@@ -46,6 +47,7 @@ interface MatchedSlot {
   username: string;
   agencyId?: string;
   influencerId?: string;
+  workerId?: string;
 }
 
 class AuthController {
@@ -121,8 +123,7 @@ class AuthController {
     await connectMongo();
     const doc = await AgencyModel.findOne({ ownerUsername: lookup }).lean<AgencyDoc>();
     if (!doc) {
-      // Run a dummy bcrypt compare so timing doesn't betray "user not found"
-      // vs "user found, wrong password". The hash is a known throwaway.
+      console.log(`[auth] agency login: no agency found with ownerUsername="${lookup}"`);
       await bcrypt.compare(
         submittedPass,
         "$2a$10$CwTycUXWue0Thq9StjUM0uJ8.J8rbpQk6cQpjpKkR2QvUnr/V2cha",
@@ -130,6 +131,7 @@ class AuthController {
       return null;
     }
     const ok = await bcrypt.compare(submittedPass, doc.ownerPasswordHash);
+    console.log(`[auth] agency login: found ownerUsername="${lookup}", password match=${ok}`);
     return ok ? doc : null;
   }
 
@@ -154,6 +156,28 @@ class AuthController {
     }
     const ok = await bcrypt.compare(submittedPass, doc.loginPasswordHash);
     return ok ? doc : null;
+  }
+
+  private async matchWorker(
+    submittedUser: string,
+    submittedPass: string,
+  ): Promise<WorkerDoc | null> {
+    const lookup = submittedUser.toLowerCase();
+    await connectMongo();
+    // Multiple agencies can share the same loginUsername — try all matches.
+    const docs = await WorkerModel.find({ loginUsername: lookup }).lean<WorkerDoc[]>();
+    if (docs.length === 0) {
+      await bcrypt.compare(
+        submittedPass,
+        "$2a$10$CwTycUXWue0Thq9StjUM0uJ8.J8rbpQk6cQpjpKkR2QvUnr/V2cha",
+      );
+      return null;
+    }
+    for (const doc of docs) {
+      const ok = await bcrypt.compare(submittedPass, doc.loginPasswordHash);
+      if (ok) return doc;
+    }
+    return null;
   }
 
   async handleLogin(request: NextRequest): Promise<NextResponse> {
@@ -196,11 +220,19 @@ class AuthController {
     }
 
     let influencerHit: InfluencerDoc | null = null;
+    let workerHit: WorkerDoc | null = null;
     if (!dbHit) {
       try {
         influencerHit = await this.matchInfluencer(submittedUser, submittedPass);
       } catch (err) {
         console.error("[auth] influencer lookup failed", err);
+      }
+    }
+    if (!dbHit && !influencerHit) {
+      try {
+        workerHit = await this.matchWorker(submittedUser, submittedPass);
+      } catch (err) {
+        console.error("[auth] worker lookup failed", err);
       }
     }
 
@@ -220,6 +252,13 @@ class AuthController {
         agencyId: influencerHit.agencyId.toString(),
         influencerId: influencerHit._id.toString(),
       };
+    } else if (workerHit) {
+      matched = {
+        role: "worker",
+        username: workerHit.loginUsername,
+        agencyId: workerHit.agencyId.toString(),
+        workerId: workerHit._id.toString(),
+      };
     }
 
     if (!matched) {
@@ -231,6 +270,7 @@ class AuthController {
       matched.role,
       matched.agencyId,
       matched.influencerId,
+      matched.workerId,
     );
     const res = NextResponse.json({
       user: {
@@ -238,6 +278,7 @@ class AuthController {
         role: matched.role,
         ...(matched.agencyId ? { agencyId: matched.agencyId } : {}),
         ...(matched.influencerId ? { influencerId: matched.influencerId } : {}),
+        ...(matched.workerId ? { workerId: matched.workerId } : {}),
       },
     });
     res.cookies.set(SESSION_COOKIE, token, sessionCookieOptions);
@@ -262,6 +303,7 @@ class AuthController {
         role: session.role,
         ...(session.agencyId ? { agencyId: session.agencyId } : {}),
         ...(session.influencerId ? { influencerId: session.influencerId } : {}),
+        ...(session.workerId ? { workerId: session.workerId } : {}),
       },
     });
   }

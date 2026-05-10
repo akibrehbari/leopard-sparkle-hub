@@ -1,32 +1,11 @@
 "use client";
 
-/**
- * Influencer roster page (path: /influencers).
- *
- * Pure CRUD now that the Infloww sync is gone. The table renders one row per
- * influencer with their handles for each tracked platform; click a row to
- * edit. The Add dialog collects a name plus optional handles.
- *
- * Field set is driven by the platform registry — adding a new platform
- * key automatically adds a new column + edit input here.
- */
-
 import { useState } from "react";
-import { CheckCheck, Copy, KeyRound, Loader2, Plus, RefreshCw, Trash2, Pencil, Save, X } from "lucide-react";
+import { FileText, MessageSquarePlus, Pencil, Star, Trash2, Users } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -37,20 +16,27 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { useSession } from "@/lib/auth/auth.hooks";
-import { isAdmin } from "@/lib/auth/roles";
+import { isManager, canEnterData } from "@/lib/auth/roles";
+import { useInfluencers } from "@/lib/influencers/influencers.hooks";
+import { useCreateReview } from "@/lib/influencers/reviews.hooks";
+import { AddInfluencerDialog } from "@/components/influencers/AddInfluencerDialog";
+import { EditInfluencerDialog } from "@/components/influencers/EditInfluencerDialog";
+import { DeleteInfluencerDialog } from "@/components/influencers/DeleteInfluencerDialog";
+import { InfluencerNotesDialog } from "@/components/influencers/InfluencerNotesDialog";
 import {
-  useCreateInfluencer,
-  useDeleteInfluencer,
-  useInfluencers,
-  useUpdateInfluencer,
-} from "@/lib/influencers/influencers.hooks";
-import api from "@/lib/api";
-import type { Influencer, InfluencerHandles } from "@/lib/influencers/types";
-import {
-  PLATFORMS,
-  PLATFORM_KEYS,
-  type PlatformKey,
-} from "@/lib/platforms/registry";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button as Btn } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
+import type { Influencer } from "@/lib/influencers/types";
+import { PLATFORMS, PLATFORM_KEYS, type PlatformKey } from "@/lib/platforms/registry";
 
 const HANDLE_PREFIX: Record<PlatformKey, string> = {
   reddit: "u/",
@@ -59,101 +45,32 @@ const HANDLE_PREFIX: Record<PlatformKey, string> = {
   onlyfans: "@",
 };
 
-const HANDLE_PLACEHOLDER: Record<PlatformKey, string> = {
-  reddit: "username (no u/)",
-  instagram: "username (no @)",
-  x: "username (no @)",
-  onlyfans: "username (no @)",
-};
-
-function emptyHandles(): Record<PlatformKey, string> {
-  return PLATFORM_KEYS.reduce(
-    (acc, k) => {
-      acc[k] = "";
-      return acc;
-    },
-    {} as Record<PlatformKey, string>,
-  );
-}
-
-function toHandlesPayload(
-  draft: Record<PlatformKey, string>,
-): InfluencerHandles {
-  const out: InfluencerHandles = {};
-  for (const k of PLATFORM_KEYS) {
-    const v = draft[k]?.trim();
-    if (v) out[k] = v;
-  }
-  return out;
-}
-
 export default function InfluencersPage() {
-  const { toast } = useToast();
-  const { data: influencers, isLoading, isError, error } = useInfluencers();
   const { data: session } = useSession();
-  const canEdit = isAdmin(session?.role);
+  const canEdit = isManager(session?.role);
+  const canReview = canEnterData(session?.role);
 
-  const create = useCreateInfluencer();
-  const removeMut = useDeleteInfluencer();
+  const { data: influencers, isLoading, isError, error } = useInfluencers();
 
-  const [createOpen, setCreateOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [handles, setHandles] = useState<Record<PlatformKey, string>>(emptyHandles());
-
-  const handleCreate = () => {
-    create.mutate(
-      { name, handles: toHandlesPayload(handles) },
-      {
-        onSuccess: () => {
-          toast({ title: "Influencer added" });
-          setCreateOpen(false);
-          setName("");
-          setHandles(emptyHandles());
-        },
-        onError: (e) =>
-          toast({
-            title: "Could not add",
-            description: (e as Error).message,
-            variant: "destructive",
-          }),
-      },
-    );
-  };
-
-  const handleDelete = (id: string, displayName: string) => {
-    if (!confirm(`Delete "${displayName}"? Their weekly entries will remain in the database.`)) {
-      return;
-    }
-    removeMut.mutate(id, {
-      onSuccess: () => toast({ title: "Influencer deleted" }),
-      onError: (e) =>
-        toast({
-          title: "Delete failed",
-          description: (e as Error).message,
-          variant: "destructive",
-        }),
-    });
-  };
+  const [editTarget, setEditTarget] = useState<Influencer | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Influencer | null>(null);
+  const [reviewTarget, setReviewTarget] = useState<Influencer | null>(null);
+  const [notesTarget, setNotesTarget] = useState<Influencer | null>(null);
 
   return (
     <AppShell>
       <div className="px-6 py-6 max-w-6xl">
         <header className="flex items-start justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-xl font-semibold">Influencers</h1>
+            <h1 className="text-xl font-semibold flex items-center gap-2">
+              <Users className="size-5 text-primary" />
+              Influencers
+            </h1>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Your roster — one row per influencer, with handles for each
-              tracked platform.
+              Your roster — one row per influencer with handles for each tracked platform.
             </p>
           </div>
-          {canEdit && (
-            <div className="flex items-center gap-2">
-              <Button size="sm" onClick={() => setCreateOpen(true)}>
-                <Plus className="size-4" />
-                Add influencer
-              </Button>
-            </div>
-          )}
+          {canEdit && <AddInfluencerDialog />}
         </header>
 
         <div className="card-surface rounded-xl overflow-hidden">
@@ -170,16 +87,11 @@ export default function InfluencersPage() {
           ) : !influencers || influencers.length === 0 ? (
             <div className="p-12 text-center text-sm text-muted-foreground">
               <p>No influencers yet.</p>
-              {canEdit ? (
-                <p className="mt-1 text-xs">
-                  Click <strong className="text-foreground">Add influencer</strong>{" "}
-                  above to create your first one.
-                </p>
-              ) : (
-                <p className="mt-1 text-xs">
-                  Ask an admin to add the first influencer.
-                </p>
-              )}
+              <p className="mt-1 text-xs">
+                {canEdit
+                  ? "Click Add influencer above to create your first one."
+                  : "Ask an admin to add the first influencer."}
+              </p>
             </div>
           ) : (
             <Table>
@@ -190,17 +102,86 @@ export default function InfluencersPage() {
                     <TableHead key={k}>{PLATFORMS[k].label}</TableHead>
                   ))}
                   <TableHead>Portal login</TableHead>
-                  {canEdit && <TableHead className="w-36" />}
+                  <TableHead>Infloww ID</TableHead>
+                  <TableHead className="w-28" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {influencers.map((inf) => (
-                  <InfluencerRow
-                    key={inf._id}
-                    influencer={inf}
-                    canEdit={canEdit}
-                    onDelete={() => handleDelete(inf._id, inf.name)}
-                  />
+                  <TableRow key={inf._id}>
+                    <TableCell>
+                      <div className="flex items-center gap-2.5">
+                        <div className="size-7 rounded-full bg-gradient-primary grid place-items-center shrink-0">
+                          <span className="text-primary-foreground text-[11px] font-semibold">
+                            {(inf.name[0] ?? "?").toUpperCase()}
+                          </span>
+                        </div>
+                        <span className="font-medium truncate">{inf.name}</span>
+                      </div>
+                    </TableCell>
+                    {PLATFORM_KEYS.map((k) => (
+                      <TableCell key={k}>
+                        <span className="text-xs text-muted-foreground">
+                          {inf.handles?.[k]
+                            ? `${HANDLE_PREFIX[k]}${inf.handles[k]}`
+                            : "—"}
+                        </span>
+                      </TableCell>
+                    ))}
+                    <TableCell>
+                      <span className="text-xs text-muted-foreground font-mono">
+                        {inf.loginUsername ?? "—"}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-xs text-muted-foreground">
+                        {inf.inflowwCreatorId ?? "—"}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-end gap-1">
+                        {canReview && (
+                          <>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              title="Internal notes"
+                              onClick={() => setNotesTarget(inf)}
+                            >
+                              <FileText className="size-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              title="Write a review"
+                              onClick={() => setReviewTarget(inf)}
+                            >
+                              <MessageSquarePlus className="size-4" />
+                            </Button>
+                          </>
+                        )}
+                        {canEdit && (
+                          <>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => setEditTarget(inf)}
+                            >
+                              <Pencil className="size-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => setDeleteTarget(inf)}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
                 ))}
               </TableBody>
             </Table>
@@ -208,151 +189,71 @@ export default function InfluencersPage() {
         </div>
       </div>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Add influencer</DialogTitle>
-            <DialogDescription>
-              Name is required. Handles are optional — add them now or later
-              by editing the row.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="m-name">Name</Label>
-              <Input
-                id="m-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Jane Doe"
-                autoFocus
-              />
-            </div>
-            {PLATFORM_KEYS.map((k) => (
-              <div key={k} className="space-y-1.5">
-                <Label htmlFor={`m-${k}`}>
-                  {PLATFORMS[k].label} handle{" "}
-                  <span className="text-muted-foreground">(optional)</span>
-                </Label>
-                <Input
-                  id={`m-${k}`}
-                  value={handles[k]}
-                  onChange={(e) =>
-                    setHandles((prev) => ({ ...prev, [k]: e.target.value }))
-                  }
-                  placeholder={HANDLE_PLACEHOLDER[k]}
-                />
-              </div>
-            ))}
-          </div>
-
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setCreateOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreate}
-              disabled={!name.trim() || create.isPending}
-            >
-              {create.isPending && <Loader2 className="size-4 animate-spin" />}
-              Add influencer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <EditInfluencerDialog
+        influencer={editTarget}
+        open={Boolean(editTarget)}
+        onOpenChange={(o) => { if (!o) setEditTarget(null); }}
+      />
+      <DeleteInfluencerDialog
+        influencer={deleteTarget}
+        open={Boolean(deleteTarget)}
+        onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}
+      />
+      <InfluencerNotesDialog
+        influencer={notesTarget}
+        open={Boolean(notesTarget)}
+        onOpenChange={(o) => { if (!o) setNotesTarget(null); }}
+        canEdit={canReview}
+      />
+      <ReviewDialog
+        influencer={reviewTarget}
+        open={Boolean(reviewTarget)}
+        onOpenChange={(o) => { if (!o) setReviewTarget(null); }}
+      />
     </AppShell>
   );
 }
 
 /* -------------------------------------------------------------------------- */
+/* Review dialog — extracted so the page stays clean                          */
+/* -------------------------------------------------------------------------- */
 
-function InfluencerRow({
+function ReviewDialog({
   influencer,
-  canEdit,
-  onDelete,
+  open,
+  onOpenChange,
 }: {
-  influencer: Influencer;
-  canEdit: boolean;
-  onDelete: () => void;
+  influencer: Influencer | null;
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
 }) {
-  const update = useUpdateInfluencer();
   const { toast } = useToast();
-  const [editing, setEditing] = useState(false);
-  const [loginOpen, setLoginOpen] = useState(false);
-  const [generated, setGenerated] = useState<{ username: string; password: string } | null>(null);
-  const [loginSaving, setLoginSaving] = useState(false);
-  const [copied, setCopied] = useState<"username" | "password" | "both" | null>(null);
-  const [draft, setDraft] = useState<Record<PlatformKey, string>>(() =>
-    PLATFORM_KEYS.reduce(
-      (acc, k) => {
-        acc[k] = influencer.handles[k] ?? "";
-        return acc;
-      },
-      {} as Record<PlatformKey, string>,
-    ),
-  );
+  const createReview = useCreateReview(influencer?._id ?? "");
+  const [content, setContent] = useState("");
+  const [weekKey, setWeekKey] = useState("");
+  const [rating, setRating] = useState(0);
+  const [hover, setHover] = useState(0);
 
-  const cancel = () => {
-    setDraft(
-      PLATFORM_KEYS.reduce(
-        (acc, k) => {
-          acc[k] = influencer.handles[k] ?? "";
-          return acc;
-        },
-        {} as Record<PlatformKey, string>,
-      ),
-    );
-    setEditing(false);
-  };
+  const reset = () => { setContent(""); setWeekKey(""); setRating(0); setHover(0); };
 
-  const generateUsername = (name: string) =>
-    name.toLowerCase().replace(/[^a-z0-9]+/g, ".").replace(/^\.|\.$/, "");
+  if (!influencer) return null;
 
-  const randomPassword = () => {
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-    return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-  };
-
-  const generateCredentials = async () => {
-    const username = generateUsername(influencer.name);
-    const password = randomPassword();
-    setLoginSaving(true);
-    try {
-      await api.post(`/api/influencers/${influencer._id}/credentials`, {
-        loginUsername: username,
-        loginPassword: password,
-      });
-      setGenerated({ username, password });
-      setCopied(null);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to generate credentials";
-      toast({ title: "Error", description: msg, variant: "destructive" });
-    } finally {
-      setLoginSaving(false);
-    }
-  };
-
-  const copyToClipboard = async (text: string, field: "username" | "password" | "both") => {
-    await navigator.clipboard.writeText(text);
-    setCopied(field);
-    setTimeout(() => setCopied(null), 2000);
-  };
-
-  const save = () => {
-    update.mutate(
+  const submit = () => {
+    createReview.mutate(
       {
-        id: influencer._id,
-        body: { handles: toHandlesPayload(draft) },
+        content: content.trim(),
+        weekKey: weekKey.trim() || undefined,
+        rating: rating > 0 ? rating : undefined,
       },
       {
         onSuccess: () => {
-          toast({ title: "Handles updated" });
-          setEditing(false);
+          toast({ title: "Review posted" });
+          reset();
+          onOpenChange(false);
         },
         onError: (e) =>
           toast({
-            title: "Update failed",
+            title: "Failed to post review",
             description: (e as Error).message,
             variant: "destructive",
           }),
@@ -361,170 +262,74 @@ function InfluencerRow({
   };
 
   return (
-    <TableRow>
-      <TableCell>
-        <div className="flex items-center gap-2.5">
-          <div className="size-7 rounded-full bg-gradient-primary grid place-items-center shrink-0">
-            <span className="text-primary-foreground text-[11px] font-semibold">
-              {(influencer.name[0] ?? "?").toUpperCase()}
-            </span>
-          </div>
-          <div className="min-w-0">
-            <div className="font-medium truncate">{influencer.name}</div>
-          </div>
-        </div>
-      </TableCell>
-      {PLATFORM_KEYS.map((k) => (
-        <TableCell key={k}>
-          {editing && canEdit ? (
-            <Input
-              value={draft[k]}
-              onChange={(e) =>
-                setDraft((prev) => ({ ...prev, [k]: e.target.value }))
-              }
-              placeholder={HANDLE_PLACEHOLDER[k]}
-              className="h-8 text-xs"
-            />
-          ) : (
-            <span className="text-xs text-muted-foreground">
-              {influencer.handles[k]
-                ? `${HANDLE_PREFIX[k]}${influencer.handles[k]}`
-                : "—"}
-            </span>
-          )}
-        </TableCell>
-      ))}
-      <TableCell>
-        <span className="text-xs text-muted-foreground">
-          {influencer.loginUsername ?? "—"}
-        </span>
-      </TableCell>
-      {canEdit && (
-      <TableCell>
-        <div className="flex items-center justify-end gap-1">
-          {editing ? (
-            <>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={save}
-                disabled={update.isPending}
-              >
-                {update.isPending ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Save className="size-4" />
-                )}
-              </Button>
-              <Button size="icon" variant="ghost" onClick={cancel}>
-                <X className="size-4" />
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                size="icon"
-                variant="ghost"
-                title="Set portal login"
-                onClick={() => setLoginOpen(true)}
-              >
-                <KeyRound className="size-4" />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => setEditing(true)}
-              >
-                <Pencil className="size-4" />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={onDelete}
-                className="text-destructive hover:text-destructive"
-              >
-                <Trash2 className="size-4" />
-              </Button>
-            </>
-          )}
-        </div>
-      </TableCell>
-      )}
+    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) reset(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Write a review — {influencer.name}</DialogTitle>
+          <DialogDescription>
+            Leave feedback for this influencer. They will see it in their portal.
+          </DialogDescription>
+        </DialogHeader>
 
-      {/* Portal credentials dialog */}
-      <Dialog open={loginOpen} onOpenChange={(o) => { setLoginOpen(o); if (!o) setGenerated(null); }}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Portal login — {influencer.name}</DialogTitle>
-            <DialogDescription>
-              {generated
-                ? "Credentials generated. Share these with the influencer."
-                : influencer.loginUsername
-                  ? <>Current username: <strong>{influencer.loginUsername}</strong>. Regenerate to issue new credentials.</>
-                  : "Generate a username and password for this influencer's personal portal."}
-            </DialogDescription>
-          </DialogHeader>
-
-          {generated ? (
-            <div className="space-y-3 py-2">
-              {/* Username row */}
-              <div className="rounded-lg border border-border bg-secondary/40 p-3">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Username</div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-sm font-semibold text-foreground">{generated.username}</span>
-                  <button
-                    onClick={() => copyToClipboard(generated.username, "username")}
-                    className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-                    title="Copy username"
-                  >
-                    {copied === "username" ? <CheckCheck className="size-4 text-success" /> : <Copy className="size-4" />}
-                  </button>
-                </div>
-              </div>
-              {/* Password row */}
-              <div className="rounded-lg border border-border bg-secondary/40 p-3">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Password</div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-sm font-semibold text-foreground tracking-widest">{generated.password}</span>
-                  <button
-                    onClick={() => copyToClipboard(generated.password, "password")}
-                    className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-                    title="Copy password"
-                  >
-                    {copied === "password" ? <CheckCheck className="size-4 text-success" /> : <Copy className="size-4" />}
-                  </button>
-                </div>
-              </div>
-              {/* Copy both */}
-              <button
-                onClick={() => copyToClipboard(`Username: ${generated.username}\nPassword: ${generated.password}`, "both")}
-                className="w-full text-xs text-muted-foreground hover:text-foreground flex items-center justify-center gap-1.5 py-1 transition-colors"
-              >
-                {copied === "both" ? <CheckCheck className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
-                {copied === "both" ? "Copied!" : "Copy both"}
-              </button>
-              <p className="text-[11px] text-muted-foreground text-center">
-                This password won&apos;t be shown again. Copy it now.
-              </p>
-              <DialogFooter>
-                <Button variant="ghost" onClick={() => { setGenerated(null); generateCredentials(); }} disabled={loginSaving}>
-                  <RefreshCw className="size-3.5" />
-                  Regenerate
-                </Button>
-                <Button onClick={() => { setLoginOpen(false); setGenerated(null); }}>Done</Button>
-              </DialogFooter>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label>Rating <span className="text-muted-foreground text-xs">(optional)</span></Label>
+            <div className="flex gap-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setRating(star === rating ? 0 : star)}
+                  onMouseEnter={() => setHover(star)}
+                  onMouseLeave={() => setHover(0)}
+                >
+                  <Star
+                    className={`size-6 transition-colors ${
+                      star <= (hover || rating)
+                        ? "fill-yellow-400 text-yellow-400"
+                        : "text-muted-foreground/30"
+                    }`}
+                  />
+                </button>
+              ))}
             </div>
-          ) : (
-            <DialogFooter className="pt-2">
-              <Button variant="ghost" onClick={() => setLoginOpen(false)}>Cancel</Button>
-              <Button onClick={generateCredentials} disabled={loginSaving}>
-                {loginSaving ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
-                {loginSaving ? "Generating…" : influencer.loginUsername ? "Regenerate credentials" : "Generate credentials"}
-              </Button>
-            </DialogFooter>
-          )}
-        </DialogContent>
-      </Dialog>
-    </TableRow>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="rv-week">
+              Week <span className="text-muted-foreground text-xs">(optional, e.g. 2025-W20)</span>
+            </Label>
+            <Input
+              id="rv-week"
+              value={weekKey}
+              onChange={(e) => setWeekKey(e.target.value)}
+              placeholder="2025-W20"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="rv-content">
+              Review <span className="text-destructive">*</span>
+            </Label>
+            <textarea
+              id="rv-content"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="Write your feedback here…"
+              rows={4}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Btn variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Btn>
+          <Btn onClick={submit} disabled={!content.trim() || createReview.isPending}>
+            {createReview.isPending && <Loader2 className="size-4 animate-spin" />}
+            Post review
+          </Btn>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

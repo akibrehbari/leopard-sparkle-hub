@@ -272,7 +272,7 @@ function DashboardContent() {
       ) : null}
 
       <footer className="text-center text-xs text-muted-foreground pt-4 pb-2">
-        eLeopards Clients Dashboard · Manual entry · Internal use only
+        Cuhvet · Manual entry · Internal use only
       </footer>
     </div>
   );

@@ -21,7 +21,7 @@ import "server-only";
 import { NextRequest, NextResponse } from "next/server";
 
 import { SESSION_COOKIE, verifySession } from "./session";
-import { isAdmin, isEditorOrAdmin } from "./roles";
+import { isAdmin, isEditorOrAdmin, isManager, canEnterData } from "./roles";
 
 /**
  * Returns null when the request belongs to an admin session, or a 401/403
@@ -46,9 +46,7 @@ export async function requireAdmin(
 }
 
 /**
- * Returns null for admin/editor sessions; 401/403 otherwise. Used by routes
- * that perform writes the editor is allowed to do (weekly entry, sync) but
- * agency owners are not.
+ * Returns null for admin/editor sessions; 401/403 otherwise.
  */
 export async function requireEditorOrAdmin(
   request: NextRequest,
@@ -61,6 +59,48 @@ export async function requireEditorOrAdmin(
   if (!isEditorOrAdmin(session.role)) {
     return NextResponse.json(
       { error: "Forbidden: read-only role" },
+      { status: 403 },
+    );
+  }
+  return null;
+}
+
+/**
+ * Returns null for admin/agency_owner sessions; 401/403 otherwise.
+ * Used for managing influencers, workers, and credentials.
+ */
+export async function requireManager(
+  request: NextRequest,
+): Promise<NextResponse | null> {
+  const token = request.cookies.get(SESSION_COOKIE)?.value;
+  const session = await verifySession(token);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!isManager(session.role)) {
+    return NextResponse.json(
+      { error: "Forbidden: manager role required" },
+      { status: 403 },
+    );
+  }
+  return null;
+}
+
+/**
+ * Returns null for admin/editor/worker sessions; 401/403 otherwise.
+ * Used for data-entry routes (weekly entries, reviews).
+ */
+export async function requireDataEntry(
+  request: NextRequest,
+): Promise<NextResponse | null> {
+  const token = request.cookies.get(SESSION_COOKIE)?.value;
+  const session = await verifySession(token);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!canEnterData(session.role)) {
+    return NextResponse.json(
+      { error: "Forbidden: data entry role required" },
       { status: 403 },
     );
   }

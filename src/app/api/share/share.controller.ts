@@ -244,12 +244,21 @@ class ShareController {
         if (typeof v === "number") data[k] = v;
       }
     }
+    const notes: Record<string, string> = {};
+    if (doc.notes instanceof Map) {
+      for (const [k, v] of doc.notes.entries()) notes[k] = v;
+    } else if (doc.notes && typeof doc.notes === "object") {
+      for (const [k, v] of Object.entries(doc.notes)) {
+        if (typeof v === "string") notes[k] = v;
+      }
+    }
     return {
       _id: doc._id.toString(),
       influencerId: doc.influencerId.toString(),
       platform: doc.platform as PlatformKey,
       weekKey: doc.weekKey,
       data,
+      notes,
       createdAt: doc.createdAt.toISOString(),
       updatedAt: doc.updatedAt.toISOString(),
     };

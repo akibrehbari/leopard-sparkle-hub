@@ -29,6 +29,11 @@ export interface SessionPayload {
    * influencer document this session is bound to.
    */
   influencerId?: string;
+  /**
+   * Set only when `role === "worker"`. Stringified ObjectId of the worker
+   * document this session is bound to.
+   */
+  workerId?: string;
   iat: number;
 }
 
@@ -47,23 +52,24 @@ export async function signSession(
   role: Role,
   agencyId?: string,
   influencerId?: string,
+  workerId?: string,
 ): Promise<string> {
-  // Only embed agencyId for agency_owner / influencer sessions. Admin/editor
-  // sessions intentionally have no agency bound to the JWT — they pick the
-  // active agency at runtime via cookie, and switch freely.
   const payload: Record<string, unknown> = { sub: username, role };
   if (role === "agency_owner") {
-    if (!agencyId) {
-      throw new Error("agency_owner session requires an agencyId");
-    }
+    if (!agencyId) throw new Error("agency_owner session requires an agencyId");
     payload.agencyId = agencyId;
   }
   if (role === "influencer") {
-    if (!agencyId || !influencerId) {
-      throw new Error("influencer session requires both agencyId and influencerId");
-    }
+    if (!agencyId || !influencerId)
+      throw new Error("influencer session requires agencyId and influencerId");
     payload.agencyId = agencyId;
     payload.influencerId = influencerId;
+  }
+  if (role === "worker") {
+    if (!agencyId || !workerId)
+      throw new Error("worker session requires agencyId and workerId");
+    payload.agencyId = agencyId;
+    payload.workerId = workerId;
   }
   return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
@@ -89,10 +95,15 @@ export async function verifySession(token: string | undefined): Promise<SessionP
     if (payload.role === "agency_owner" && typeof payload.agencyId !== "string") {
       return null;
     }
-    // Influencer sessions must carry both agencyId and influencerId.
     if (
       payload.role === "influencer" &&
       (typeof payload.agencyId !== "string" || typeof payload.influencerId !== "string")
+    ) {
+      return null;
+    }
+    if (
+      payload.role === "worker" &&
+      (typeof payload.agencyId !== "string" || typeof payload.workerId !== "string")
     ) {
       return null;
     }
@@ -103,6 +114,7 @@ export async function verifySession(token: string | undefined): Promise<SessionP
     };
     if (typeof payload.agencyId === "string") out.agencyId = payload.agencyId;
     if (typeof payload.influencerId === "string") out.influencerId = payload.influencerId;
+    if (typeof payload.workerId === "string") out.workerId = payload.workerId;
     return out;
   } catch {
     return null;

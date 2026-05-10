@@ -39,12 +39,23 @@ class EntriesController {
       }
     }
     if (stripSpend) data = this.stripSpendFields(data);
+
+    const notes: Record<string, string> = {};
+    if (doc.notes instanceof Map) {
+      for (const [k, v] of doc.notes.entries()) notes[k] = v;
+    } else if (doc.notes && typeof doc.notes === "object") {
+      for (const [k, v] of Object.entries(doc.notes)) {
+        if (typeof v === "string") notes[k] = v;
+      }
+    }
+
     return {
       _id: doc._id.toString(),
       influencerId: doc.influencerId.toString(),
       platform: doc.platform as PlatformKey,
       weekKey: doc.weekKey,
       data,
+      notes,
       createdAt: doc.createdAt.toISOString(),
       updatedAt: doc.updatedAt.toISOString(),
     };
@@ -179,6 +190,13 @@ class EntriesController {
         return NextResponse.json({ error: validation.error }, { status: 400 });
       }
 
+      // Sanitize notes: only keep string values, strip empty ones
+      const rawNotes = body.notes ?? {};
+      const cleanNotes: Record<string, string> = {};
+      for (const [k, v] of Object.entries(rawNotes)) {
+        if (typeof v === "string" && v.trim()) cleanNotes[k] = v.trim();
+      }
+
       const agencyObjId = new mongoose.Types.ObjectId(agencyId);
       const doc = await WeeklyEntryModel.findOneAndUpdate(
         {
@@ -187,7 +205,7 @@ class EntriesController {
           weekKey: body.weekKey,
         },
         {
-          $set: { data: validation.data },
+          $set: { data: validation.data, notes: cleanNotes },
           $setOnInsert: { agencyId: agencyObjId },
         },
         { new: true, upsert: true, setDefaultsOnInsert: true },

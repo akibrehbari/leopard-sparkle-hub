@@ -3,8 +3,8 @@ import "@/index.css";
 import { Providers } from "@/components/Providers";
 
 export const metadata: Metadata = {
-  title: "eLeopards Dashboard",
-  description: "eLeopards Clients Dashboard · Internal use only",
+  title: "Cuhvet Admin",
+  description: "Cuhvet · Internal use only",
 };
 
 export default function RootLayout({

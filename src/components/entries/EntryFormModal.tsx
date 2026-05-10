@@ -13,13 +13,14 @@
  *     that their input went up not down.
  *   - For OnlyFans, groups the 6 fields into per-source sub-sections
  *     (Reddit / Instagram / X), each with revenue + spend side-by-side.
+ *     The subscribers field is shown separately at the top with an Infloww sync.
  */
 
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2, RefreshCw, Trash2 } from "lucide-react";
 
 import {
   Dialog,
@@ -60,6 +61,8 @@ interface Props {
   influencerName: string;
   platform: PlatformKey;
   weekKey: string;
+  /** When true, hides revenue/spend/cost fields — used for worker portals. */
+  hideFinancials?: boolean;
 }
 
 export function EntryFormModal({
@@ -69,6 +72,7 @@ export function EntryFormModal({
   influencerName,
   platform,
   weekKey,
+  hideFinancials,
 }: Props) {
   const { toast } = useToast();
   const { data: platforms, isLoading: platformsLoading } = usePlatforms();
@@ -120,6 +124,8 @@ export function EntryFormModal({
         ]);
       }
       shape[f.key] = inner;
+      // note field alongside each metric
+      shape[`_note_${f.key}`] = z.string().optional();
     }
     return z.object(shape);
   }, [platformDef]);
@@ -145,6 +151,7 @@ export function EntryFormModal({
       } else {
         defaults[f.key] = String(raw);
       }
+      defaults[`_note_${f.key}`] = existingEntry?.notes?.[f.key] ?? "";
     }
     form.reset(defaults);
   }, [open, existingEntry, platformDef, form]);
@@ -152,12 +159,24 @@ export function EntryFormModal({
   /* -- Submit / delete --------------------------------------------------- */
 
   const onSubmit = (values: FormValues) => {
+    // Separate numeric data from _note_ fields
+    const data: Record<string, number | string> = {};
+    const notes: Record<string, string> = {};
+    for (const [k, v] of Object.entries(values)) {
+      if (k.startsWith("_note_")) {
+        const fieldKey = k.slice(6);
+        if (typeof v === "string" && v.trim()) notes[fieldKey] = v.trim();
+      } else {
+        data[k] = v as number | string;
+      }
+    }
     upsert.mutate(
       {
         influencerId,
         platform,
         weekKey,
-        data: values as Record<string, number | string>,
+        data,
+        notes,
       },
       {
         onSuccess: () => {
@@ -251,6 +270,8 @@ export function EntryFormModal({
                 fieldByKey={new Map(platformDef.fields.map((f) => [f.key, f]))}
                 existingData={existingEntry?.data}
                 form={form}
+                influencerId={influencerId}
+                hideFinancials={hideFinancials}
               />
             ) : (
               platformDef.fields.map((f) => (
@@ -317,6 +338,7 @@ function FieldRow({
   form: any;
 }) {
   const isCurrency = (field.kind ?? "count") === "currencyCents";
+  const noteKey = `_note_${field.key}`;
   const err = form.formState.errors[field.key];
   return (
     <div className="space-y-1.5">
@@ -352,6 +374,13 @@ function FieldRow({
           {String(err.message)}
         </p>
       )}
+      <textarea
+        id={`note-${field.key}`}
+        placeholder="Add a note… (optional)"
+        rows={2}
+        className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs text-muted-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+        {...form.register(noteKey)}
+      />
     </div>
   );
 }
@@ -376,15 +405,85 @@ function OnlyFansFields({
   fieldByKey,
   existingData,
   form,
+  influencerId,
+  hideFinancials,
 }: {
   fieldByKey: Map<string, PlatformField>;
   existingData: Record<string, number> | undefined;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   form: any;
+  influencerId: string;
+  hideFinancials?: boolean;
 }) {
+  const subscribersField = fieldByKey.get("subscribers");
+  const [syncState, setSyncState] = useState<"idle" | "loading" | "error">("idle");
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  const syncSubscribers = useCallback(async () => {
+    setSyncState("loading");
+    setSyncError(null);
+    try {
+      const res = await fetch(
+        `/api/infloww/subscribers?influencerId=${encodeURIComponent(influencerId)}`,
+      );
+      const json = await res.json();
+      if (!res.ok) {
+        setSyncError(json.error ?? "Infloww sync failed");
+        setSyncState("error");
+        return;
+      }
+      form.setValue("subscribers", String(json.subscribers), { shouldDirty: true });
+      setSyncState("idle");
+    } catch {
+      setSyncError("Network error — could not reach Infloww");
+      setSyncState("error");
+    }
+  }, [influencerId, form]);
+
   return (
     <div className="space-y-4">
-      {ACQUISITION_PLATFORM_KEYS.map((src) => {
+      {/* Subscribers — global cumulative count synced from Infloww */}
+      {subscribersField && (
+        <div className="rounded-lg border border-border bg-secondary/20 p-3 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="f-subscribers" className="text-xs font-semibold uppercase tracking-wider">
+              Total subscribers
+            </Label>
+            <button
+              type="button"
+              onClick={syncSubscribers}
+              disabled={syncState === "loading"}
+              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              title="Fetch from Infloww"
+            >
+              <RefreshCw className={`size-3 ${syncState === "loading" ? "animate-spin" : ""}`} />
+              Sync from Infloww
+            </button>
+          </div>
+          <Input
+            id="f-subscribers"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            step={1}
+            placeholder="e.g. 1250"
+            {...form.register("subscribers")}
+          />
+          {subscribersField.hint && (
+            <p className="text-[11px] text-muted-foreground">{subscribersField.hint}</p>
+          )}
+          {syncError && (
+            <p className="text-[11px] text-destructive">{syncError}</p>
+          )}
+          {form.formState.errors["subscribers"] && (
+            <p className="text-[11px] text-destructive">
+              {String(form.formState.errors["subscribers"].message)}
+            </p>
+          )}
+        </div>
+      )}
+
+      {!hideFinancials && ACQUISITION_PLATFORM_KEYS.map((src) => {
         const revKey = onlyFansFieldKey("revenue", src);
         const spdKey = onlyFansFieldKey("spend", src);
         const revField = fieldByKey.get(revKey);

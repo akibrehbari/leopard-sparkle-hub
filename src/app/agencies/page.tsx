@@ -11,7 +11,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Building2, Pencil, ShieldAlert, Trash2 } from "lucide-react";
+import { AlertCircle, Building2, Pencil, ShieldAlert, Trash2, UserCog } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ import {
 import { AddAgencyDialog } from "@/components/agencies/AddAgencyDialog";
 import { EditAgencyDialog } from "@/components/agencies/EditAgencyDialog";
 import { DeleteAgencyDialog } from "@/components/agencies/DeleteAgencyDialog";
+import { AgencyWorkersDialog } from "@/components/agencies/AgencyWorkersDialog";
 import { useAgencies } from "@/lib/agencies/agencies.hooks";
 import { useSession } from "@/lib/auth/auth.hooks";
 import { isAdmin } from "@/lib/auth/roles";
@@ -42,6 +43,7 @@ export default function AgenciesPage() {
 
   const [editTarget, setEditTarget] = useState<Agency | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Agency | null>(null);
+  const [workersTarget, setWorkersTarget] = useState<Agency | null>(null);
 
   // If the admin nukes the agency they were just operating on, send them
   // home so the cookie can be re-picked by the auto-select effect.
@@ -134,7 +136,7 @@ export default function AgenciesPage() {
                   <TableHead className="text-right">Influencers</TableHead>
                   <TableHead className="text-right">Subreddits</TableHead>
                   <TableHead className="text-right">Weekly entries</TableHead>
-                  <TableHead className="w-32" />
+                  <TableHead className="w-36" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -144,6 +146,7 @@ export default function AgenciesPage() {
                     agency={a}
                     onEdit={() => setEditTarget(a)}
                     onDelete={() => setDeleteTarget(a)}
+                    onWorkers={() => setWorkersTarget(a)}
                   />
                 ))}
               </TableBody>
@@ -151,6 +154,12 @@ export default function AgenciesPage() {
           )}
         </div>
       </div>
+
+      <AgencyWorkersDialog
+        agency={workersTarget}
+        open={Boolean(workersTarget)}
+        onOpenChange={(o) => { if (!o) setWorkersTarget(null); }}
+      />
 
       <EditAgencyDialog
         agency={editTarget}
@@ -185,10 +194,12 @@ function AgencyRow({
   agency,
   onEdit,
   onDelete,
+  onWorkers,
 }: {
   agency: Agency;
   onEdit: () => void;
   onDelete: () => void;
+  onWorkers: () => void;
 }) {
   const counts = agency.counts ?? {
     influencers: 0,
@@ -231,6 +242,9 @@ function AgencyRow({
       </TableCell>
       <TableCell>
         <div className="flex items-center justify-end gap-1">
+          <Button size="icon" variant="ghost" onClick={onWorkers} title="Manage workers">
+            <UserCog className="size-4" />
+          </Button>
           <Button size="icon" variant="ghost" onClick={onEdit} title="Edit">
             <Pencil className="size-4" />
           </Button>

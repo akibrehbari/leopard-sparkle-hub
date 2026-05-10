@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { influencersController } from "../../influencers.controller";
-import { requireAdmin } from "@/lib/auth/guards";
+import { requireManager } from "@/lib/auth/guards";
 import { resolveAgencyContext } from "@/lib/tenancy/server";
 
 export const runtime = "nodejs";
@@ -11,7 +11,7 @@ interface Ctx {
 }
 
 export async function POST(request: NextRequest, ctx: Ctx) {
-  const denied = await requireAdmin(request);
+  const denied = await requireManager(request);
   if (denied) return denied;
   const tenant = await resolveAgencyContext(request);
   if (tenant instanceof NextResponse) return tenant;

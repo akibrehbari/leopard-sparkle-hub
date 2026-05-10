@@ -52,11 +52,12 @@ const HISTORY_WEEKS = 12;
 
 interface Props {
   influencer: Influencer;
-  /** Must be an acquisition platform (reddit / instagram / x). */
-  platform: Exclude<PlatformKey, "onlyfans">;
+  platform: PlatformKey;
   prefetchedEntries?: WeeklyEntry[];
   prefetchedPlatform?: PlatformDefinition;
   readOnly?: boolean;
+  /** When true, hides all revenue/spend/cost fields (for worker and influencer portals). */
+  hideFinancials?: boolean;
 }
 
 export function PlatformSection({
@@ -65,6 +66,7 @@ export function PlatformSection({
   prefetchedEntries,
   prefetchedPlatform,
   readOnly,
+  hideFinancials,
 }: Props) {
   const usePrefetched = prefetchedEntries !== undefined;
 
@@ -346,6 +348,7 @@ export function PlatformSection({
           influencerName={influencer.name}
           platform={platform}
           weekKey={modalWeek}
+          hideFinancials={hideFinancials}
         />
       )}
     </>
