@@ -41,6 +41,7 @@ class InfluencersController {
       ofNotes: doc.ofNotes ?? null,
       trackerNotes: doc.trackerNotes ?? null,
       avatarUrl: doc.avatarUrl ?? null,
+      sortOrder: doc.sortOrder ?? 0,
       createdAt: doc.createdAt.toISOString(),
       updatedAt: doc.updatedAt.toISOString(),
     };
@@ -88,7 +89,7 @@ class InfluencersController {
         filter._id = new mongoose.Types.ObjectId(influencerId);
       }
       const docs = await InfluencerModel.find(filter)
-        .sort({ name: 1 })
+        .sort({ sortOrder: 1, createdAt: 1 })
         .lean<InfluencerDoc[]>();
       return NextResponse.json({ data: docs.map((d) => this.toJson(d)) });
     } catch (err) {
@@ -147,10 +148,14 @@ class InfluencersController {
         }
       }
 
+      const existingCount = await InfluencerModel.countDocuments({
+        agencyId: new mongoose.Types.ObjectId(agencyId),
+      });
       const createData: Record<string, unknown> = {
         agencyId: new mongoose.Types.ObjectId(agencyId),
         name,
         handles: this.sanitizeHandles(body.handles),
+        sortOrder: existingCount,
       };
       if (body.inflowwCreatorId?.trim()) {
         createData.inflowwCreatorId = body.inflowwCreatorId.trim();
@@ -338,6 +343,27 @@ class InfluencersController {
       return NextResponse.json({ data: this.toJson(doc) });
     } catch (err) {
       return this.errorResponse(err, 400);
+    }
+  }
+
+  async handleReorder(request: NextRequest, agencyId: string): Promise<NextResponse> {
+    try {
+      const { ids } = (await request.json()) as { ids: string[] };
+      if (!Array.isArray(ids) || ids.some((id) => !mongoose.isValidObjectId(id))) {
+        return NextResponse.json({ error: "ids must be an array of valid ObjectIds" }, { status: 400 });
+      }
+      await connectMongo();
+      await Promise.all(
+        ids.map((id, index) =>
+          InfluencerModel.updateOne(
+            { _id: id, agencyId: new mongoose.Types.ObjectId(agencyId) },
+            { $set: { sortOrder: index } },
+          ),
+        ),
+      );
+      return NextResponse.json({ ok: true });
+    } catch (err) {
+      return this.errorResponse(err);
     }
   }
 }

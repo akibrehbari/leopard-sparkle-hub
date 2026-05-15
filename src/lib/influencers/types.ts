@@ -28,6 +28,8 @@ export interface Influencer {
   trackerNotes?: string | null;
   /** Public URL of the influencer's avatar image. */
   avatarUrl?: string | null;
+  /** Manual sort position — lower = higher in list. */
+  sortOrder?: number;
   createdAt: string;
   updatedAt: string;
 }

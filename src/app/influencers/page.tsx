@@ -1,7 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, MessageSquarePlus, Pencil, Star, Trash2, Users } from "lucide-react";
+import { FileText, GripVertical, MessageSquarePlus, Pencil, Star, Trash2, Users } from "lucide-react";
+
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -17,7 +33,10 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useSession } from "@/lib/auth/auth.hooks";
 import { isManager, canEnterData } from "@/lib/auth/roles";
-import { useInfluencers } from "@/lib/influencers/influencers.hooks";
+import {
+  useInfluencers,
+  useReorderInfluencers,
+} from "@/lib/influencers/influencers.hooks";
 import { useCreateReview } from "@/lib/influencers/reviews.hooks";
 import { AddInfluencerDialog } from "@/components/influencers/AddInfluencerDialog";
 import { EditInfluencerDialog } from "@/components/influencers/EditInfluencerDialog";
@@ -51,11 +70,39 @@ export default function InfluencersPage() {
   const canReview = canEnterData(session?.role);
 
   const { data: influencers, isLoading, isError, error } = useInfluencers();
+  const reorder = useReorderInfluencers();
+
+  // Local optimistic order — keeps the UI snappy while the server call is in-flight
+  const [localOrder, setLocalOrder] = useState<string[] | null>(null);
 
   const [editTarget, setEditTarget] = useState<Influencer | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Influencer | null>(null);
   const [reviewTarget, setReviewTarget] = useState<Influencer | null>(null);
   const [notesTarget, setNotesTarget] = useState<Influencer | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+  );
+
+  const orderedInfluencers = (() => {
+    if (!influencers) return [];
+    if (!localOrder) return influencers;
+    const map = new Map(influencers.map((i) => [i._id, i]));
+    return localOrder.map((id) => map.get(id)).filter(Boolean) as Influencer[];
+  })();
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const ids = orderedInfluencers.map((i) => i._id);
+    const oldIndex = ids.indexOf(active.id as string);
+    const newIndex = ids.indexOf(over.id as string);
+    const newOrder = arrayMove(ids, oldIndex, newIndex);
+
+    setLocalOrder(newOrder);
+    reorder.mutate(newOrder);
+  };
 
   return (
     <AppShell>
@@ -67,7 +114,7 @@ export default function InfluencersPage() {
               Influencers
             </h1>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Your roster — one row per influencer with handles for each tracked platform.
+              Your roster — drag rows to reorder by priority.
             </p>
           </div>
           {canEdit && <AddInfluencerDialog />}
@@ -97,6 +144,7 @@ export default function InfluencersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  {canEdit && <TableHead className="w-8" />}
                   <TableHead>Name</TableHead>
                   {PLATFORM_KEYS.map((k) => (
                     <TableHead key={k}>{PLATFORMS[k].label}</TableHead>
@@ -106,92 +154,31 @@ export default function InfluencersPage() {
                   <TableHead className="w-28" />
                 </TableRow>
               </TableHeader>
-              <TableBody>
-                {influencers.map((inf) => (
-                  <TableRow key={inf._id}>
-                    <TableCell>
-                      <div className="flex items-center gap-2.5">
-                        <div className="size-8 rounded-full shrink-0 overflow-hidden bg-gradient-primary grid place-items-center">
-                          {inf.avatarUrl ? (
-                            <img
-                              src={inf.avatarUrl}
-                              alt={inf.name}
-                              className="size-full object-cover"
-                            />
-                          ) : (
-                            <span className="text-primary-foreground text-[11px] font-semibold">
-                              {(inf.name[0] ?? "?").toUpperCase()}
-                            </span>
-                          )}
-                        </div>
-                        <span className="font-medium truncate">{inf.name}</span>
-                      </div>
-                    </TableCell>
-                    {PLATFORM_KEYS.map((k) => (
-                      <TableCell key={k}>
-                        <span className="text-xs text-muted-foreground">
-                          {inf.handles?.[k]
-                            ? `${HANDLE_PREFIX[k]}${inf.handles[k]}`
-                            : "—"}
-                        </span>
-                      </TableCell>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={orderedInfluencers.map((i) => i._id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <TableBody>
+                    {orderedInfluencers.map((inf) => (
+                      <SortableRow
+                        key={inf._id}
+                        inf={inf}
+                        canEdit={canEdit}
+                        canReview={canReview}
+                        onEdit={() => setEditTarget(inf)}
+                        onDelete={() => setDeleteTarget(inf)}
+                        onReview={() => setReviewTarget(inf)}
+                        onNotes={() => setNotesTarget(inf)}
+                      />
                     ))}
-                    <TableCell>
-                      <span className="text-xs text-muted-foreground font-mono">
-                        {inf.loginUsername ?? "—"}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-xs text-muted-foreground">
-                        {inf.inflowwCreatorId ?? "—"}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-end gap-1">
-                        {canReview && (
-                          <>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              title="Internal notes"
-                              onClick={() => setNotesTarget(inf)}
-                            >
-                              <FileText className="size-4" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              title="Write a review"
-                              onClick={() => setReviewTarget(inf)}
-                            >
-                              <MessageSquarePlus className="size-4" />
-                            </Button>
-                          </>
-                        )}
-                        {canEdit && (
-                          <>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => setEditTarget(inf)}
-                            >
-                              <Pencil className="size-4" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => setDeleteTarget(inf)}
-                              className="text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="size-4" />
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
+                  </TableBody>
+                </SortableContext>
+              </DndContext>
             </Table>
           )}
         </div>
@@ -223,7 +210,115 @@ export default function InfluencersPage() {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Review dialog — extracted so the page stays clean                          */
+/* Sortable row                                                                */
+/* -------------------------------------------------------------------------- */
+
+function SortableRow({
+  inf,
+  canEdit,
+  canReview,
+  onEdit,
+  onDelete,
+  onReview,
+  onNotes,
+}: {
+  inf: Influencer;
+  canEdit: boolean;
+  canReview: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+  onReview: () => void;
+  onNotes: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: inf._id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+
+  return (
+    <TableRow ref={setNodeRef} style={style}>
+      {canEdit && (
+        <TableCell className="w-8 pr-0">
+          <button
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground transition-colors touch-none"
+            title="Drag to reorder"
+          >
+            <GripVertical className="size-4" />
+          </button>
+        </TableCell>
+      )}
+      <TableCell>
+        <div className="flex items-center gap-2.5">
+          <div className="size-8 rounded-full shrink-0 overflow-hidden bg-gradient-primary grid place-items-center">
+            {inf.avatarUrl ? (
+              <img src={inf.avatarUrl} alt={inf.name} className="size-full object-cover" />
+            ) : (
+              <span className="text-primary-foreground text-[11px] font-semibold">
+                {(inf.name[0] ?? "?").toUpperCase()}
+              </span>
+            )}
+          </div>
+          <span className="font-medium truncate">{inf.name}</span>
+        </div>
+      </TableCell>
+      {PLATFORM_KEYS.map((k) => (
+        <TableCell key={k}>
+          <span className="text-xs text-muted-foreground">
+            {inf.handles?.[k] ? `${HANDLE_PREFIX[k]}${inf.handles[k]}` : "—"}
+          </span>
+        </TableCell>
+      ))}
+      <TableCell>
+        <span className="text-xs text-muted-foreground font-mono">
+          {inf.loginUsername ?? "—"}
+        </span>
+      </TableCell>
+      <TableCell>
+        <span className="text-xs text-muted-foreground">
+          {inf.inflowwCreatorId ?? "—"}
+        </span>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center justify-end gap-1">
+          {canReview && (
+            <>
+              <Button size="icon" variant="ghost" title="Internal notes" onClick={onNotes}>
+                <FileText className="size-4" />
+              </Button>
+              <Button size="icon" variant="ghost" title="Write a review" onClick={onReview}>
+                <MessageSquarePlus className="size-4" />
+              </Button>
+            </>
+          )}
+          {canEdit && (
+            <>
+              <Button size="icon" variant="ghost" onClick={onEdit}>
+                <Pencil className="size-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={onDelete}
+                className="text-destructive hover:text-destructive"
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            </>
+          )}
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Review dialog                                                               */
 /* -------------------------------------------------------------------------- */
 
 function ReviewDialog({

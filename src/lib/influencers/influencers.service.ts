@@ -35,6 +35,10 @@ class InfluencersService {
   async remove(id: string): Promise<void> {
     await api.delete(this.url(`/${id}`));
   }
+
+  async reorder(ids: string[]): Promise<void> {
+    await api.patch(this.url("/reorder"), { ids });
+  }
 }
 
 export const influencersService = new InfluencersService();

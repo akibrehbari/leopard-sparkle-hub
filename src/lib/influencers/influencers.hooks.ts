@@ -53,3 +53,11 @@ export function useDeleteInfluencer() {
     onSuccess: () => qc.invalidateQueries({ queryKey: LIST_KEY }),
   });
 }
+
+export function useReorderInfluencers() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: string[]) => influencersService.reorder(ids),
+    onSuccess: () => qc.invalidateQueries({ queryKey: LIST_KEY }),
+  });
+}

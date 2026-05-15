@@ -37,6 +37,8 @@ export interface InfluencerDoc {
   trackerNotes?: string | null;
   /** Public URL of the influencer's avatar image (stored in Vercel Blob). */
   avatarUrl?: string | null;
+  /** Manual sort order — lower = higher in the list. */
+  sortOrder?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -70,6 +72,7 @@ const InfluencerSchema = new Schema<InfluencerDoc>(
     ofNotes: { type: String, default: null },
     trackerNotes: { type: String, default: null },
     avatarUrl: { type: String, default: null },
+    sortOrder: { type: Number, default: 0 },
   },
   { timestamps: true, collection: "influencers" },
 );
