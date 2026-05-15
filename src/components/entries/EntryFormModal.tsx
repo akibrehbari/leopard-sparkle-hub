@@ -171,9 +171,12 @@ export function EntryFormModal({
     if (platform === "onlyfans") {
       defaults[`_chatternote_global`] = existingEntry?.notes?.["chatter_global"] ?? "";
       for (const src of ACQUISITION_PLATFORM_KEYS) {
-        defaults[`_chk_freesub_${src}`]  = !!(existingEntry?.data?.[`freesub_${src}`]);
-        defaults[`_chk_paidsub_${src}`]  = !!(existingEntry?.data?.[`paidsub_${src}`]);
-        defaults[`_chk_freetrial_${src}`] = !!(existingEntry?.data?.[`freetrial_${src}`]);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (defaults as any)[`_chk_freesub_${src}`]  = !!(existingEntry?.data?.[`freesub_${src}`]);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (defaults as any)[`_chk_paidsub_${src}`]  = !!(existingEntry?.data?.[`paidsub_${src}`]);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (defaults as any)[`_chk_freetrial_${src}`] = !!(existingEntry?.data?.[`freetrial_${src}`]);
       }
     }
     form.reset(defaults);
