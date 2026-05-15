@@ -452,6 +452,18 @@ function OnlyFansFields({
 
   const visibleSources = activeSources ?? ACQUISITION_PLATFORM_KEYS;
 
+  // Auto-sum subscribers from all visible platform sections
+  const subsKeys = visibleSources.map((src) => onlyFansFieldKey("subs", src));
+  const watchedSubs = form.watch(subsKeys);
+  const totalSubs = subsKeys.reduce((sum: number, _: string, i: number) => {
+    const v = Number(watchedSubs[i]);
+    return sum + (isNaN(v) ? 0 : v);
+  }, 0);
+
+  useEffect(() => {
+    form.setValue("subscribers", String(totalSubs), { shouldDirty: true });
+  }, [totalSubs, form]);
+
   return (
     <div className="space-y-4">
       {visibleSources.map((src) => {
@@ -545,26 +557,15 @@ function OnlyFansFields({
       {/* Subscribers — placed after platform sections */}
       {subscribersField && (
         <div className="rounded-lg border border-border bg-secondary/20 p-3 space-y-2">
-          <Label htmlFor="f-subscribers" className="text-xs font-semibold uppercase tracking-wider">
-            Total subscribers
-          </Label>
-          <Input
-            id="f-subscribers"
-            type="number"
-            inputMode="numeric"
-            min={0}
-            step={1}
-            placeholder="e.g. 1250"
-            {...form.register("subscribers")}
-          />
-          {subscribersField.hint && (
-            <p className="text-[11px] text-muted-foreground">{subscribersField.hint}</p>
-          )}
-          {form.formState.errors["subscribers"] && (
-            <p className="text-[11px] text-destructive">
-              {String(form.formState.errors["subscribers"].message)}
-            </p>
-          )}
+          <div className="flex items-center justify-between">
+            <Label className="text-xs font-semibold uppercase tracking-wider">
+              Total subscribers
+            </Label>
+            <span className="text-[11px] text-muted-foreground">Auto-calculated</span>
+          </div>
+          <div className="rounded-md border border-border bg-background px-3 py-2 text-sm font-medium tabular-nums">
+            {totalSubs}
+          </div>
         </div>
       )}
 
