@@ -40,6 +40,13 @@ export function EditSubredditDialog({ subreddit, open, onOpenChange }: Props) {
     subreddit.influencerId,
   );
 
+  const isPersonal = category === "personal";
+
+  const handleCategoryChange = (cat: string) => {
+    setCategory(cat);
+    if (cat !== "personal") setInfluencerId(null);
+  };
+
   // Reset draft state any time we open with a different subreddit.
   useEffect(() => {
     if (open) {
@@ -88,16 +95,18 @@ export function EditSubredditDialog({ subreddit, open, onOpenChange }: Props) {
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
             <Label>Category</Label>
-            <CategoryCombobox value={category} onChange={setCategory} />
+            <CategoryCombobox value={category} onChange={handleCategoryChange} />
           </div>
 
-          <div className="space-y-1.5">
-            <Label>Linked influencer</Label>
-            <InfluencerCombobox
-              value={influencerId}
-              onChange={setInfluencerId}
-            />
-          </div>
+          {isPersonal && (
+            <div className="space-y-1.5">
+              <Label>Linked influencer</Label>
+              <InfluencerCombobox value={influencerId} onChange={setInfluencerId} />
+              <p className="text-[11px] text-muted-foreground">
+                This subreddit will appear on the linked influencer's dashboard.
+              </p>
+            </div>
+          )}
         </div>
 
         <DialogFooter>

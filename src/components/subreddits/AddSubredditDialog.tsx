@@ -41,6 +41,13 @@ export function AddSubredditDialog({ trigger }: Props) {
   const [category, setCategory] = useState("");
   const [influencerId, setInfluencerId] = useState<string | null>(null);
 
+  const isPersonal = category === "personal";
+
+  const handleCategoryChange = (cat: string) => {
+    setCategory(cat);
+    if (cat !== "personal") setInfluencerId(null);
+  };
+
   const create = useCreateSubreddit();
 
   const reset = () => {
@@ -94,8 +101,7 @@ export function AddSubredditDialog({ trigger }: Props) {
         <DialogHeader>
           <DialogTitle>Add subreddit</DialogTitle>
           <DialogDescription>
-            Enter the subreddit name, pick a category, and optionally link it
-            to an influencer.
+            Enter the subreddit name and pick a category.
           </DialogDescription>
         </DialogHeader>
 
@@ -119,23 +125,18 @@ export function AddSubredditDialog({ trigger }: Props) {
 
           <div className="space-y-1.5">
             <Label>Category</Label>
-            <CategoryCombobox value={category} onChange={setCategory} />
-            <p className="text-[11px] text-muted-foreground">
-              Used purely for filtering on the subreddits page.
-            </p>
+            <CategoryCombobox value={category} onChange={handleCategoryChange} />
           </div>
 
-          <div className="space-y-1.5">
-            <Label>Linked influencer</Label>
-            <InfluencerCombobox
-              value={influencerId}
-              onChange={setInfluencerId}
-            />
-            <p className="text-[11px] text-muted-foreground">
-              Optional. Many-to-one — each subreddit belongs to at most one
-              model.
-            </p>
-          </div>
+          {isPersonal && (
+            <div className="space-y-1.5">
+              <Label>Linked influencer</Label>
+              <InfluencerCombobox value={influencerId} onChange={setInfluencerId} />
+              <p className="text-[11px] text-muted-foreground">
+                This subreddit will appear on the linked influencer's dashboard.
+              </p>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
