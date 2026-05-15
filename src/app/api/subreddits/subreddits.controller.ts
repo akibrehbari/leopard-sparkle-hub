@@ -1,11 +1,9 @@
 /**
  * Subreddits controller.
  *
- * Owns CRUD on the `subreddits` collection plus the Sunday sync that hits
- * Reddit's public JSON API and writes per-week snapshots to
- * `subreddit_snapshots`. The list endpoint also pre-joins the latest two
- * snapshots so the UI table can render subscribers + weekly delta in a
- * single round-trip.
+ * Owns CRUD on the `subreddits` collection plus manual weekly snapshot entry.
+ * The list endpoint pre-joins the latest two snapshots so the UI table can
+ * render followers + weekly delta in a single round-trip.
  *
  * Tenant-scoped: every read filters by `agencyId`, every write stamps it,
  * and the unique key on subreddit names is `(agencyId, name)` rather than
@@ -23,31 +21,21 @@ import {
   SubredditSnapshotModel,
   type SubredditDoc,
   type SubredditSnapshotDoc,
-  type SubredditTopPost,
 } from "./subreddits.model";
 import { InfluencerModel } from "@/app/api/influencers/influencers.model";
-import {
-  fetchSubredditAbout,
-  fetchSubredditDigest,
-  normalizeSubredditName,
-} from "@/lib/reddit/client";
+import { normalizeSubredditName } from "@/lib/reddit/client";
 import {
   SUBREDDIT_CATEGORY_KEYS,
   isValidCategory,
 } from "@/lib/subreddits/categories";
-import { currentWeekKey } from "@/lib/utils/week";
 import type {
   CreateSubredditBody,
   Subreddit,
   SubredditSnapshot,
-  SubredditTopPost as SubredditTopPostJson,
   SubredditWithLatest,
-  SyncResult,
   UpdateSubredditBody,
+  UpsertSubredditSnapshotBody,
 } from "@/lib/subreddits/types";
-
-/** Cap concurrent Reddit fetches during a sync run. Reddit rate-limits ~60/min. */
-const SYNC_BATCH_SIZE = 5;
 
 class SubredditsController {
   /* ---------------------------------------------------------------------- */
@@ -58,12 +46,9 @@ class SubredditsController {
     return {
       _id: doc._id.toString(),
       name: doc.name,
-      displayName: doc.displayName,
+      displayName: doc.displayName ?? doc.name,
       category: doc.category,
       influencerId: doc.influencerId ? doc.influencerId.toString() : null,
-      description: doc.description,
-      over18: doc.over18,
-      lastSyncedAt: doc.lastSyncedAt ? doc.lastSyncedAt.toISOString() : null,
       createdAt: doc.createdAt.toISOString(),
       updatedAt: doc.updatedAt.toISOString(),
     };
@@ -74,11 +59,9 @@ class SubredditsController {
       _id: doc._id.toString(),
       subredditId: doc.subredditId.toString(),
       weekKey: doc.weekKey,
-      subscribers: doc.subscribers,
-      activeUsers: doc.activeUsers,
-      postsLast7d: doc.postsLast7d,
-      topPost: doc.topPost as SubredditTopPostJson | null,
-      syncedAt: doc.syncedAt.toISOString(),
+      followers: doc.followers,
+      contributions: doc.contributions,
+      weeklyVisits: doc.weeklyVisits,
     };
   }
 
@@ -163,7 +146,7 @@ class SubredditsController {
         ? this.snapshotToJson(recent[1] as unknown as SubredditSnapshotDoc)
         : null;
       const weeklyDelta =
-        latest && prior ? latest.subscribers - prior.subscribers : null;
+        latest && prior ? latest.followers - prior.followers : null;
       return {
         ...this.toJson(doc),
         latest,
@@ -259,40 +242,12 @@ class SubredditsController {
         );
       }
 
-      // Validate the subreddit exists on Reddit. We tolerate a transient
-      // Reddit failure by falling back to the operator-supplied name — better
-      // to let them save and rely on the sync to reconcile than to block on a
-      // flaky upstream.
-      let displayName = name;
-      let description: string | null = null;
-      let over18 = false;
-      try {
-        const about = await fetchSubredditAbout(name);
-        if (about) {
-          displayName = about.display_name ?? name;
-          description = about.public_description ?? null;
-          over18 = Boolean(about.over18);
-        } else {
-          return NextResponse.json(
-            { error: `r/${name} doesn't exist or isn't visible to anonymous users` },
-            { status: 400 },
-          );
-        }
-      } catch (err) {
-        console.warn(
-          "[subreddits] Reddit validation failed, accepting subreddit anyway",
-          err,
-        );
-      }
-
       const doc = await SubredditModel.create({
         agencyId: agencyObjId,
         name,
-        displayName,
+        displayName: name,
         category,
         influencerId,
-        description,
-        over18,
       });
 
       return NextResponse.json(
@@ -395,140 +350,67 @@ class SubredditsController {
   }
 
   /* ---------------------------------------------------------------------- */
-  /*  Sync                                                                  */
+  /*  Manual snapshot entry                                                 */
   /* ---------------------------------------------------------------------- */
 
   /**
-   * Sync one subreddit: fetch a digest from Reddit, upsert the snapshot for
-   * the current PKT week, refresh cached metadata on the parent doc.
-   *
-   * Returns null on Reddit-side failure or if the subreddit isn't visible.
+   * Upsert a weekly snapshot for a single subreddit.
+   * Called from PATCH /api/subreddits/snapshots with manager-level auth.
    */
-  private async syncOne(
-    doc: SubredditDoc,
-    weekKey: string,
-    now: Date,
-  ): Promise<SubredditSnapshotDoc | null> {
-    const digest = await fetchSubredditDigest(doc.name, now);
-    if (!digest) return null;
-
-    const topPost: SubredditTopPost | null = digest.topPost
-      ? {
-          title: digest.topPost.title,
-          score: digest.topPost.score,
-          url: digest.topPost.url,
-          permalink: digest.topPost.permalink,
-          author: digest.topPost.author,
-        }
-      : null;
-
-    const snap = await SubredditSnapshotModel.findOneAndUpdate(
-      { subredditId: doc._id, weekKey },
-      {
-        $set: {
-          subscribers: digest.subscribers,
-          activeUsers: digest.activeUsers,
-          postsLast7d: digest.postsLast7d,
-          topPost,
-          syncedAt: now,
-        },
-        $setOnInsert: {
-          subredditId: doc._id,
-          agencyId: doc.agencyId,
-          weekKey,
-        },
-      },
-      { upsert: true, new: true },
-    ).lean<SubredditSnapshotDoc>();
-
-    await SubredditModel.findByIdAndUpdate(doc._id, {
-      displayName: digest.meta.displayName,
-      description: digest.meta.description,
-      over18: digest.meta.over18,
-      lastSyncedAt: now,
-    });
-
-    return snap;
-  }
-
-  async handleSyncAll(
-    _request: NextRequest,
+  async handleUpsertSnapshot(
+    request: NextRequest,
     agencyId: string,
   ): Promise<NextResponse> {
     try {
-      await connectMongo();
-      const docs = await SubredditModel.find({
-        agencyId: new mongoose.Types.ObjectId(agencyId),
-      }).lean<SubredditDoc[]>();
-      const result = await this.runSync(docs);
-      return NextResponse.json({ data: result });
-    } catch (err) {
-      return this.errorResponse(err);
-    }
-  }
+      const body = (await request.json()) as UpsertSubredditSnapshotBody;
+      const { subredditId, weekKey, followers, contributions, weeklyVisits } = body ?? {};
 
-  async handleSyncOne(
-    _request: NextRequest,
-    id: string,
-    agencyId: string,
-  ): Promise<NextResponse> {
-    try {
-      if (!mongoose.isValidObjectId(id)) {
-        return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+      if (!subredditId || !mongoose.isValidObjectId(subredditId)) {
+        return NextResponse.json({ error: "Invalid subredditId" }, { status: 400 });
       }
+      if (!weekKey || !/^\d{4}-W\d{2}$/.test(weekKey)) {
+        return NextResponse.json({ error: "weekKey must match YYYY-Www" }, { status: 400 });
+      }
+      if (typeof followers !== "number" || followers < 0) {
+        return NextResponse.json({ error: "followers must be a non-negative number" }, { status: 400 });
+      }
+      if (typeof contributions !== "number" || contributions < 0) {
+        return NextResponse.json({ error: "contributions must be a non-negative number" }, { status: 400 });
+      }
+      if (typeof weeklyVisits !== "number" || weeklyVisits < 0) {
+        return NextResponse.json({ error: "weeklyVisits must be a non-negative number" }, { status: 400 });
+      }
+
       await connectMongo();
-      const doc = await SubredditModel.findOne({
-        _id: id,
-        agencyId: new mongoose.Types.ObjectId(agencyId),
+      const agencyObjId = new mongoose.Types.ObjectId(agencyId);
+      const subredditObjId = new mongoose.Types.ObjectId(subredditId);
+
+      // Verify the subreddit belongs to this agency.
+      const sub = await SubredditModel.findOne({
+        _id: subredditObjId,
+        agencyId: agencyObjId,
       }).lean<SubredditDoc>();
-      if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
-      const result = await this.runSync([doc]);
-      return NextResponse.json({ data: result });
+      if (!sub) {
+        return NextResponse.json({ error: "Subreddit not found" }, { status: 404 });
+      }
+
+      const snap = await SubredditSnapshotModel.findOneAndUpdate(
+        { subredditId: subredditObjId, weekKey },
+        {
+          $set: { followers, contributions, weeklyVisits },
+          $setOnInsert: {
+            subredditId: subredditObjId,
+            agencyId: agencyObjId,
+            weekKey,
+          },
+        },
+        { upsert: true, new: true },
+      ).lean<SubredditSnapshotDoc>();
+
+      return NextResponse.json({ data: this.snapshotToJson(snap!) });
     } catch (err) {
-      return this.errorResponse(err);
+      return this.errorResponse(err, 400);
     }
-  }
-
-  /**
-   * Run a sync over a list of subreddit docs in batches of SYNC_BATCH_SIZE,
-   * using Promise.allSettled so a single bad subreddit doesn't sink the run.
-   */
-  private async runSync(docs: SubredditDoc[]): Promise<SyncResult> {
-    const now = new Date();
-    const weekKey = currentWeekKey();
-    const failed: SyncResult["failed"] = [];
-    let synced = 0;
-
-    for (let i = 0; i < docs.length; i += SYNC_BATCH_SIZE) {
-      const batch = docs.slice(i, i + SYNC_BATCH_SIZE);
-      const results = await Promise.allSettled(
-        batch.map((d) => this.syncOne(d, weekKey, now)),
-      );
-      results.forEach((r, idx) => {
-        const doc = batch[idx];
-        if (r.status === "fulfilled" && r.value) {
-          synced += 1;
-        } else if (r.status === "fulfilled" && !r.value) {
-          failed.push({
-            name: doc.name,
-            error: "Subreddit not reachable on Reddit (private, banned, or deleted)",
-          });
-        } else if (r.status === "rejected") {
-          failed.push({
-            name: doc.name,
-            error: (r.reason as Error)?.message ?? String(r.reason),
-          });
-        }
-      });
-    }
-
-    return {
-      total: docs.length,
-      synced,
-      failed,
-      weekKey,
-      syncedAt: now.toISOString(),
-    };
   }
 }
 

@@ -2,9 +2,10 @@ import api from "@/lib/api";
 import type {
   CreateSubredditBody,
   Subreddit,
+  SubredditSnapshot,
   SubredditWithLatest,
-  SyncResult,
   UpdateSubredditBody,
+  UpsertSubredditSnapshotBody,
 } from "./types";
 
 class SubredditsService {
@@ -38,13 +39,11 @@ class SubredditsService {
     await api.delete(this.url(`/${id}`));
   }
 
-  async syncAll(): Promise<SyncResult> {
-    const { data } = await api.post<{ data: SyncResult }>(this.url("/sync"));
-    return data.data;
-  }
-
-  async syncOne(id: string): Promise<SyncResult> {
-    const { data } = await api.post<{ data: SyncResult }>(this.url(`/sync/${id}`));
+  async upsertSnapshot(body: UpsertSubredditSnapshotBody): Promise<SubredditSnapshot> {
+    const { data } = await api.patch<{ data: SubredditSnapshot }>(
+      this.url("/snapshots"),
+      body,
+    );
     return data.data;
   }
 }

@@ -3,7 +3,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { subredditsService } from "./subreddits.service";
-import type { CreateSubredditBody, UpdateSubredditBody } from "./types";
+import type {
+  CreateSubredditBody,
+  UpdateSubredditBody,
+  UpsertSubredditSnapshotBody,
+} from "./types";
 
 const LIST_KEY = ["subreddits", "list"] as const;
 const detailKey = (id: string) => ["subreddits", "detail", id] as const;
@@ -51,18 +55,11 @@ export function useDeleteSubreddit() {
   });
 }
 
-export function useSyncSubreddits() {
+export function useUpsertSubredditSnapshot() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => subredditsService.syncAll(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: LIST_KEY }),
-  });
-}
-
-export function useSyncSubreddit() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => subredditsService.syncOne(id),
+    mutationFn: (body: UpsertSubredditSnapshotBody) =>
+      subredditsService.upsertSnapshot(body),
     onSuccess: () => qc.invalidateQueries({ queryKey: LIST_KEY }),
   });
 }

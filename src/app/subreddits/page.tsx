@@ -3,10 +3,10 @@
 /**
  * Subreddits roster page (path: /subreddits).
  *
- * - Sync subreddits button (writes a fresh weekly snapshot for each row).
- * - Add subreddit dialog (validates the name with Reddit, seeds metadata).
+ * - Add subreddit dialog (creates a new tracked subreddit).
  * - Filters (search / category / linked influencer).
- * - Sortable subreddits table with per-row re-sync, edit, delete.
+ * - Sortable subreddits table with per-row log, edit, delete.
+ * - Log button (pencil) opens SubredditEntryDialog for manual weekly entry.
  */
 
 import { useMemo, useState } from "react";
@@ -20,10 +20,9 @@ import {
   type SubredditFilterDraft,
 } from "@/components/subreddits/SubredditFilters";
 import { SubredditTable } from "@/components/subreddits/SubredditTable";
-import { SyncSubredditsButton } from "@/components/subreddits/SyncSubredditsButton";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSession } from "@/lib/auth/auth.hooks";
-import { isAdmin, isEditorOrAdmin } from "@/lib/auth/roles";
+import { isAdmin } from "@/lib/auth/roles";
 import { useInfluencers } from "@/lib/influencers/influencers.hooks";
 import { useSubreddits } from "@/lib/subreddits/subreddits.hooks";
 
@@ -32,7 +31,6 @@ export default function SubredditsPage() {
   const { data: influencers } = useInfluencers();
   const { data: session } = useSession();
   const canEdit = isAdmin(session?.role);
-  const canSync = isEditorOrAdmin(session?.role);
   const [filters, setFilters] = useState<SubredditFilterDraft>(EMPTY_FILTERS);
 
   const filtered = useMemo(
@@ -47,13 +45,12 @@ export default function SubredditsPage() {
           <div>
             <h1 className="text-xl font-semibold">Subreddits</h1>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Track subscriber growth, weekly post volume, and the top
-              post for each subreddit. Run a sync every Sunday to refresh
-              the current week's snapshot.
+              Track follower growth, contributions, and weekly visits for each
+              subreddit. Use the log button on each row to enter this week's
+              numbers.
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {canSync && <SyncSubredditsButton />}
             {canEdit && <AddSubredditDialog />}
           </div>
         </header>

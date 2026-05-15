@@ -20,7 +20,6 @@ import {
   ArrowUpDown,
   Loader2,
   Pencil,
-  RefreshCw,
   Trash2,
 } from "lucide-react";
 
@@ -39,33 +38,29 @@ import { useSession } from "@/lib/auth/auth.hooks";
 import { isAdmin, isEditorOrAdmin } from "@/lib/auth/roles";
 import { useInfluencers } from "@/lib/influencers/influencers.hooks";
 import { categoryLabel } from "@/lib/subreddits/categories";
-import {
-  useDeleteSubreddit,
-  useSyncSubreddit,
-} from "@/lib/subreddits/subreddits.hooks";
+import { useDeleteSubreddit } from "@/lib/subreddits/subreddits.hooks";
 import type { SubredditWithLatest } from "@/lib/subreddits/types";
 import { formatNumber, formatSignedInt } from "@/lib/utils/format";
-import { pkt } from "@/lib/utils/dayjs";
 import { cn } from "@/lib/utils";
 
 import { EditSubredditDialog } from "./EditSubredditDialog";
+import { SubredditEntryDialog } from "./SubredditEntryDialog";
 
 type SortKey =
   | "name"
   | "category"
   | "influencer"
-  | "subscribers"
+  | "followers"
   | "weeklyDelta"
-  | "activeUsers"
-  | "postsLast7d"
-  | "lastSyncedAt";
+  | "contributions"
+  | "weeklyVisits";
 type SortDir = "asc" | "desc";
 
 interface Props {
   subreddits: SubredditWithLatest[];
   /** When set, hide rows whose `influencerId` doesn't match. */
   filterByInfluencerId?: string;
-  /** Hide row-level edit/delete/re-sync actions (e.g. on the share page). */
+  /** Hide row-level edit/delete/log actions (e.g. on the share page). */
   readOnly?: boolean;
   /**
    * Compact variant: smaller paddings, hides a couple of less-critical
@@ -91,18 +86,15 @@ export function SubredditTable({
   emptyMessage,
   prefetchedInfluencers,
 }: Props) {
-  const [sortKey, setSortKey] = useState<SortKey>("subscribers");
+  const [sortKey, setSortKey] = useState<SortKey>("followers");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [editing, setEditing] = useState<SubredditWithLatest | null>(null);
+  const [logging, setLogging] = useState<SubredditWithLatest | null>(null);
 
   const { data: session } = useSession();
-  // Editors keep the per-row "re-sync" action (they can sync subreddits) but
-  // lose Edit and Delete. Agency owners are read-only — they don't get sync
-  // either. `readOnly` from the parent (e.g. share page) hides every action
-  // regardless of role.
   const canEdit = !readOnly && isAdmin(session?.role);
-  const canResync = !readOnly && isEditorOrAdmin(session?.role);
-  const showActionsColumn = canEdit || canResync;
+  const canLog = !readOnly && isEditorOrAdmin(session?.role);
+  const showActionsColumn = canEdit || canLog;
 
   // Skip the auth-protected /api/influencers call when the parent has
   // already supplied the name lookup (share page passes `roster`).
@@ -176,8 +168,8 @@ export function SubredditTable({
                 />
               )}
               <SortableHeader
-                label="Subscribers"
-                sortKey="subscribers"
+                label="Followers"
+                sortKey="followers"
                 active={sortKey}
                 dir={sortDir}
                 onClick={handleHeaderClick}
@@ -193,8 +185,8 @@ export function SubredditTable({
               />
               {!compact && (
                 <SortableHeader
-                  label="Active"
-                  sortKey="activeUsers"
+                  label="Contributions"
+                  sortKey="contributions"
                   active={sortKey}
                   dir={sortDir}
                   onClick={handleHeaderClick}
@@ -202,20 +194,12 @@ export function SubredditTable({
                 />
               )}
               <SortableHeader
-                label="Posts/wk"
-                sortKey="postsLast7d"
+                label="Weekly Visits"
+                sortKey="weeklyVisits"
                 active={sortKey}
                 dir={sortDir}
                 onClick={handleHeaderClick}
                 align="right"
-              />
-              {!compact && <TableHead>Top post</TableHead>}
-              <SortableHeader
-                label="Last synced"
-                sortKey="lastSyncedAt"
-                active={sortKey}
-                dir={sortDir}
-                onClick={handleHeaderClick}
               />
               {showActionsColumn && (
                 <TableHead className="w-32 text-right">Actions</TableHead>
@@ -235,8 +219,9 @@ export function SubredditTable({
                 showInfluencerColumn={!filterByInfluencerId}
                 compact={compact}
                 canEdit={canEdit}
-                canResync={canResync}
+                canLog={canLog}
                 onEdit={() => setEditing(sub)}
+                onLog={() => setLogging(sub)}
               />
             ))}
           </TableBody>
@@ -250,6 +235,14 @@ export function SubredditTable({
           onOpenChange={(o) => !o && setEditing(null)}
         />
       )}
+
+      {canLog && (
+        <SubredditEntryDialog
+          subreddit={logging}
+          open={Boolean(logging)}
+          onOpenChange={(o) => !o && setLogging(null)}
+        />
+      )}
     </>
   );
 }
@@ -257,11 +250,10 @@ export function SubredditTable({
 /* -------------------------------------------------------------------------- */
 
 const NUMERIC_KEYS = new Set<SortKey>([
-  "subscribers",
+  "followers",
   "weeklyDelta",
-  "activeUsers",
-  "postsLast7d",
-  "lastSyncedAt",
+  "contributions",
+  "weeklyVisits",
 ]);
 
 function compareSubreddits(
@@ -284,19 +276,14 @@ function compareSubreddits(
       if (!bn) return -1;
       return an.localeCompare(bn);
     }
-    case "subscribers":
-      return (a.latest?.subscribers ?? 0) - (b.latest?.subscribers ?? 0);
+    case "followers":
+      return (a.latest?.followers ?? 0) - (b.latest?.followers ?? 0);
     case "weeklyDelta":
       return (a.weeklyDelta ?? 0) - (b.weeklyDelta ?? 0);
-    case "activeUsers":
-      return (a.latest?.activeUsers ?? 0) - (b.latest?.activeUsers ?? 0);
-    case "postsLast7d":
-      return (a.latest?.postsLast7d ?? 0) - (b.latest?.postsLast7d ?? 0);
-    case "lastSyncedAt": {
-      const at = a.lastSyncedAt ? new Date(a.lastSyncedAt).getTime() : 0;
-      const bt = b.lastSyncedAt ? new Date(b.lastSyncedAt).getTime() : 0;
-      return at - bt;
-    }
+    case "contributions":
+      return (a.latest?.contributions ?? 0) - (b.latest?.contributions ?? 0);
+    case "weeklyVisits":
+      return (a.latest?.weeklyVisits ?? 0) - (b.latest?.weeklyVisits ?? 0);
   }
 }
 
@@ -354,9 +341,10 @@ interface RowProps {
   compact: boolean;
   /** Admin-only: edit + delete actions. */
   canEdit: boolean;
-  /** Admin + editor: per-row "re-sync" action. */
-  canResync: boolean;
+  /** Admin + editor: per-row "log" action. */
+  canLog: boolean;
   onEdit: () => void;
+  onLog: () => void;
 }
 
 function SubredditRow({
@@ -365,34 +353,12 @@ function SubredditRow({
   showInfluencerColumn,
   compact,
   canEdit,
-  canResync,
+  canLog,
   onEdit,
+  onLog,
 }: RowProps) {
   const { toast } = useToast();
-  const syncOne = useSyncSubreddit();
   const remove = useDeleteSubreddit();
-
-  const handleSync = () => {
-    syncOne.mutate(sub._id, {
-      onSuccess: (res) => {
-        if (res.failed.length === 0) {
-          toast({ title: `r/${sub.name} synced` });
-        } else {
-          toast({
-            title: `r/${sub.name} sync failed`,
-            description: res.failed[0]?.error,
-            variant: "destructive",
-          });
-        }
-      },
-      onError: (e) =>
-        toast({
-          title: "Sync failed",
-          description: (e as Error).message,
-          variant: "destructive",
-        }),
-    });
-  };
 
   const handleDelete = () => {
     if (!confirm(`Stop tracking r/${sub.name}? Snapshots will be retained.`)) return;
@@ -407,11 +373,10 @@ function SubredditRow({
     });
   };
 
-  const subs = sub.latest?.subscribers ?? null;
+  const followers = sub.latest?.followers ?? null;
   const delta = sub.weeklyDelta;
-  const active = sub.latest?.activeUsers ?? null;
-  const posts = sub.latest?.postsLast7d ?? null;
-  const top = sub.latest?.topPost ?? null;
+  const contributions = sub.latest?.contributions ?? null;
+  const weeklyVisits = sub.latest?.weeklyVisits ?? null;
 
   return (
     <TableRow>
@@ -425,11 +390,6 @@ function SubredditRow({
           >
             r/{sub.displayName}
           </a>
-          {sub.over18 && (
-            <Badge variant="destructive" className="h-4 px-1 text-[9px] leading-none">
-              NSFW
-            </Badge>
-          )}
         </div>
       </TableCell>
       <TableCell>
@@ -445,7 +405,7 @@ function SubredditRow({
         </TableCell>
       )}
       <TableCell className="text-right tabular-nums">
-        {subs !== null ? formatNumber(subs) : "—"}
+        {followers !== null ? formatNumber(followers) : "—"}
       </TableCell>
       <TableCell className="text-right tabular-nums">
         {delta === null ? (
@@ -467,53 +427,23 @@ function SubredditRow({
       </TableCell>
       {!compact && (
         <TableCell className="text-right tabular-nums">
-          {active !== null ? formatNumber(active) : "—"}
+          {contributions !== null ? formatNumber(contributions) : "—"}
         </TableCell>
       )}
       <TableCell className="text-right tabular-nums">
-        {posts !== null ? formatNumber(posts) : "—"}
+        {weeklyVisits !== null ? formatNumber(weeklyVisits) : "—"}
       </TableCell>
-      {!compact && (
-        <TableCell className="max-w-[260px]">
-          {top ? (
-            <a
-              href={top.permalink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block truncate text-xs hover:underline"
-              title={`${top.title} · u/${top.author} · ${formatNumber(top.score)}`}
-            >
-              <span className="text-muted-foreground tabular-nums mr-1">
-                ↑{formatNumber(top.score)}
-              </span>
-              {top.title}
-            </a>
-          ) : (
-            <span className="text-xs text-muted-foreground">—</span>
-          )}
-        </TableCell>
-      )}
-      <TableCell>
-        <span className="text-xs text-muted-foreground whitespace-nowrap">
-          {sub.lastSyncedAt ? pkt(sub.lastSyncedAt).format("MMM D") : "Never"}
-        </span>
-      </TableCell>
-      {(canResync || canEdit) && (
+      {(canLog || canEdit) && (
         <TableCell>
           <div className="flex items-center justify-end gap-1">
-            {canResync && (
+            {canLog && (
               <Button
                 size="icon"
                 variant="ghost"
-                onClick={handleSync}
-                disabled={syncOne.isPending}
-                title="Re-sync this subreddit"
+                onClick={onLog}
+                title="Log weekly data"
               >
-                {syncOne.isPending ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="size-4" />
-                )}
+                <Pencil className="size-4" />
               </Button>
             )}
             {canEdit && (
@@ -522,20 +452,20 @@ function SubredditRow({
               </Button>
             )}
             {canEdit && (
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={handleDelete}
-              disabled={remove.isPending}
-              className="text-destructive hover:text-destructive"
-              title="Delete"
-            >
-              {remove.isPending ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Trash2 className="size-4" />
-              )}
-            </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={handleDelete}
+                disabled={remove.isPending}
+                className="text-destructive hover:text-destructive"
+                title="Delete"
+              >
+                {remove.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Trash2 className="size-4" />
+                )}
+              </Button>
             )}
           </div>
         </TableCell>

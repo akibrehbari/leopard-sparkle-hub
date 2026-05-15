@@ -94,8 +94,8 @@ export function AddSubredditDialog({ trigger }: Props) {
         <DialogHeader>
           <DialogTitle>Add subreddit</DialogTitle>
           <DialogDescription>
-            We'll validate the name with Reddit and seed the subreddit
-            metadata. Run a sync to pull subscriber counts.
+            Enter the subreddit name, pick a category, and optionally link it
+            to an influencer.
           </DialogDescription>
         </DialogHeader>
 
@@ -115,10 +115,6 @@ export function AddSubredditDialog({ trigger }: Props) {
                 autoFocus
               />
             </div>
-            <p className="text-[11px] text-muted-foreground">
-              Either form works (`askreddit`, `r/askreddit`, or the full
-              reddit.com URL).
-            </p>
           </div>
 
           <div className="space-y-1.5">
