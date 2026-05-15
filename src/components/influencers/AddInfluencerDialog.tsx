@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Loader2, Plus } from "lucide-react";
+import { useRef, useState } from "react";
+import { Loader2, Plus, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -44,6 +44,10 @@ export function AddInfluencerDialog({ trigger }: Props) {
   const [inflowwCreatorId, setInflowwCreatorId] = useState("");
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
     setName("");
@@ -51,13 +55,44 @@ export function AddInfluencerDialog({ trigger }: Props) {
     setInflowwCreatorId("");
     setLoginUsername("");
     setLoginPassword("");
+    setAvatarFile(null);
+    setAvatarPreview(null);
   };
 
-  const submit = () => {
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarFile(file);
+    setAvatarPreview(URL.createObjectURL(file));
+  };
+
+  const submit = async () => {
     const handlesPayload: Record<string, string> = {};
     for (const k of PLATFORM_KEYS) {
       const v = handles[k]?.trim();
       if (v) handlesPayload[k] = v;
+    }
+
+    let avatarUrl: string | undefined;
+    if (avatarFile) {
+      setUploading(true);
+      try {
+        const fd = new FormData();
+        fd.append("file", avatarFile);
+        const res = await fetch("/api/upload/avatar", { method: "POST", body: fd });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error ?? "Upload failed");
+        avatarUrl = json.url as string;
+      } catch (e) {
+        setUploading(false);
+        toast({
+          title: "Avatar upload failed",
+          description: (e as Error).message,
+          variant: "destructive",
+        });
+        return;
+      }
+      setUploading(false);
     }
 
     create.mutate(
@@ -67,6 +102,7 @@ export function AddInfluencerDialog({ trigger }: Props) {
         ...(inflowwCreatorId.trim() ? { inflowwCreatorId: inflowwCreatorId.trim() } : {}),
         ...(loginUsername.trim() ? { loginUsername: loginUsername.trim().toLowerCase() } : {}),
         ...(loginPassword ? { loginPassword } : {}),
+        ...(avatarUrl ? { avatarUrl } : {}),
       },
       {
         onSuccess: (inf) => {
@@ -122,6 +158,45 @@ export function AddInfluencerDialog({ trigger }: Props) {
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {/* Avatar picker */}
+          <div className="flex flex-col items-center gap-2 pb-1">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="relative group size-20 rounded-full border-2 border-dashed border-border hover:border-primary transition-colors overflow-hidden bg-muted flex items-center justify-center"
+            >
+              {avatarPreview ? (
+                <>
+                  <img src={avatarPreview} alt="Avatar preview" className="size-full object-cover" />
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <Upload className="size-5 text-white" />
+                  </div>
+                </>
+              ) : (
+                <Upload className="size-5 text-muted-foreground" />
+              )}
+            </button>
+            {avatarPreview && (
+              <button
+                type="button"
+                onClick={() => { setAvatarFile(null); setAvatarPreview(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"
+              >
+                <X className="size-3" /> Remove photo
+              </button>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {avatarPreview ? "Click photo to change" : "Upload profile photo (optional)"}
+            </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleAvatarChange}
+            />
+          </div>
+
           <div className="space-y-1.5">
             <Label htmlFor="inf-name">Name</Label>
             <Input
@@ -191,9 +266,9 @@ export function AddInfluencerDialog({ trigger }: Props) {
           <Button variant="ghost" onClick={() => setOpen(false)}>
             Cancel
           </Button>
-          <Button onClick={submit} disabled={!canSubmit || create.isPending}>
-            {create.isPending && <Loader2 className="size-4 animate-spin" />}
-            Create influencer
+          <Button onClick={submit} disabled={!canSubmit || create.isPending || uploading}>
+            {(create.isPending || uploading) && <Loader2 className="size-4 animate-spin" />}
+            {uploading ? "Uploading…" : "Create influencer"}
           </Button>
         </DialogFooter>
       </DialogContent>

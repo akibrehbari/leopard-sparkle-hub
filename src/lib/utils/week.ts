@@ -47,14 +47,33 @@ export function currentWeekKey(): string {
 }
 
 /**
- * Last N weeks ending with the current one, oldest-first.
- * E.g. lastNWeeks(3) on 2026-W18 → ["2026-W16", "2026-W17", "2026-W18"].
+ * Returns true when today (PKT) is Sunday — the day the team logs weekly data.
+ * The current week is only shown in the UI on Sunday; mid-week it stays hidden.
+ */
+export function isTodaySundayPKT(now: ConfigType = new Date()): boolean {
+  return pkt(now).isoWeekday() === 7; // ISO 7 = Sunday
+}
+
+/**
+ * Last N weeks ending with the most recent *displayable* week, oldest-first.
+ *
+ * "Displayable" means the week has ended (i.e. it is Sunday in PKT or later).
+ * Monday–Saturday the current incomplete week is excluded; on Sunday it is
+ * included so the team can log and immediately see it in the UI.
+ *
+ * E.g. lastNWeeks(3) on a Wednesday in 2026-W18:
+ *   → ["2026-W15", "2026-W16", "2026-W17"]  (W18 not shown yet)
+ * On Sunday in 2026-W18:
+ *   → ["2026-W16", "2026-W17", "2026-W18"]  (W18 now visible)
  */
 export function lastNWeeks(n: number, from: ConfigType = new Date()): string[] {
   const out: string[] = [];
   const base = pkt(from);
+  // If today is not Sunday, anchor to last week so the current incomplete week
+  // is excluded. On Sunday the current week is the "completed" week.
+  const anchor = isTodaySundayPKT(from) ? base : base.subtract(1, "week");
   for (let i = n - 1; i >= 0; i -= 1) {
-    out.push(toWeekKey(base.subtract(i, "week")));
+    out.push(toWeekKey(anchor.subtract(i, "week")));
   }
   return out;
 }

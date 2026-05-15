@@ -40,7 +40,6 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { ModelOverview } from "@/components/dashboard/ModelOverview";
 import { OnlyFansAttributionSection } from "@/components/dashboard/OnlyFansAttributionSection";
 import { PlatformSection } from "@/components/dashboard/PlatformSection";
-import { SubscribersROIChart } from "@/components/dashboard/SubscribersROIChart";
 import { PlatformBadge } from "@/components/dashboard/PlatformBadge";
 import { ShareLinkDialog } from "@/components/dashboard/ShareLinkDialog";
 import { SubredditTable } from "@/components/subreddits/SubredditTable";
@@ -86,7 +85,7 @@ function DashboardContent() {
   const selectedId = search.get("id") ?? "all";
   const { toast } = useToast();
 
-  const [range, setRange] = useState<DashboardRange>("30d");
+  const [range, setRange] = useState<DashboardRange>("4w");
   const [exporting, setExporting] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const captureRef = useRef<HTMLDivElement>(null);
@@ -233,36 +232,38 @@ function DashboardContent() {
             />
           </section>
 
-          <section className="mb-8">
-            <SubscribersROIChart influencer={selectedInfluencer} />
-          </section>
+          {selectedInfluencer.handles?.reddit && (
+            <section className="mb-8">
+              <PlatformBadge platform="reddit" />
+              <PlatformSection
+                influencer={selectedInfluencer}
+                platform="reddit"
+                readOnly={readOnly}
+              />
+            </section>
+          )}
 
-          <section className="mb-8">
-            <PlatformBadge platform="reddit" />
-            <PlatformSection
-              influencer={selectedInfluencer}
-              platform="reddit"
-              readOnly={readOnly}
-            />
-          </section>
+          {selectedInfluencer.handles?.instagram && (
+            <section className="mb-8">
+              <PlatformBadge platform="instagram" />
+              <PlatformSection
+                influencer={selectedInfluencer}
+                platform="instagram"
+                readOnly={readOnly}
+              />
+            </section>
+          )}
 
-          <section className="mb-8">
-            <PlatformBadge platform="instagram" />
-            <PlatformSection
-              influencer={selectedInfluencer}
-              platform="instagram"
-              readOnly={readOnly}
-            />
-          </section>
-
-          <section className="mb-8">
-            <PlatformBadge platform="x" />
-            <PlatformSection
-              influencer={selectedInfluencer}
-              platform="x"
-              readOnly={readOnly}
-            />
-          </section>
+          {selectedInfluencer.handles?.x && (
+            <section className="mb-8">
+              <PlatformBadge platform="x" />
+              <PlatformSection
+                influencer={selectedInfluencer}
+                platform="x"
+                readOnly={readOnly}
+              />
+            </section>
+          )}
 
           <section className="mb-8">
             <PlatformBadge platform="reddit" suffix="subreddits" />
@@ -283,9 +284,9 @@ function DashboardContent() {
 /* -------------------------------------------------------------------------- */
 
 const RANGE_TO_WEEKS: Record<DashboardRange, number> = {
-  "7d": 1,
-  "30d": 5,
-  "90d": 13,
+  "2w": 2,
+  "4w": 4,
+  "8w": 8,
 };
 
 function AggregateOverview({
@@ -370,7 +371,7 @@ function AggregateOverview({
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <KpiCard
             label="Total revenue"
-            value={formatUSD(aggregate.totalRevenue, { fractional: true })}
+            value={formatUSD(aggregate.totalRevenue)}
             icon={DollarSign}
             accent="success"
             hint={`${aggregate.influencerCount} influencer${aggregate.influencerCount === 1 ? "" : "s"}`}
@@ -384,7 +385,7 @@ function AggregateOverview({
           />
           <KpiCard
             label="Net"
-            value={formatUSD(aggregate.net, { fractional: true })}
+            value={formatUSD(aggregate.net)}
             icon={Receipt}
             accent={aggregate.net >= 0 ? "success" : "instagram"}
             hint={aggregate.net >= 0 ? "Profit" : "Loss"}

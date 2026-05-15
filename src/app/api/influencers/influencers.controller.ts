@@ -40,6 +40,7 @@ class InfluencersController {
       marketingNotes: doc.marketingNotes ?? null,
       ofNotes: doc.ofNotes ?? null,
       trackerNotes: doc.trackerNotes ?? null,
+      avatarUrl: doc.avatarUrl ?? null,
       createdAt: doc.createdAt.toISOString(),
       updatedAt: doc.updatedAt.toISOString(),
     };
@@ -151,6 +152,12 @@ class InfluencersController {
         name,
         handles: this.sanitizeHandles(body.handles),
       };
+      if (body.inflowwCreatorId?.trim()) {
+        createData.inflowwCreatorId = body.inflowwCreatorId.trim();
+      }
+      if (body.avatarUrl?.trim()) {
+        createData.avatarUrl = body.avatarUrl.trim();
+      }
       if (loginUsername && loginPassword) {
         createData.loginUsername = loginUsername;
         createData.loginPasswordHash = await bcrypt.hash(loginPassword, 10);
@@ -218,6 +225,10 @@ class InfluencersController {
       if ("trackerNotes" in body) {
         const v = (body as { trackerNotes?: string | null }).trackerNotes;
         update.trackerNotes = typeof v === "string" && v.trim() ? v.slice(0, 5000) : null;
+      }
+      if ("avatarUrl" in body) {
+        const v = (body as { avatarUrl?: string | null }).avatarUrl;
+        update.avatarUrl = typeof v === "string" && v.trim() ? v.trim() : null;
       }
       if (Object.keys(update).length === 0) {
         return NextResponse.json({ error: "Nothing to update" }, { status: 400 });

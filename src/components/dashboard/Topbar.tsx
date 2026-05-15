@@ -27,9 +27,9 @@ interface Props {
 }
 
 const RANGE_LABELS: Record<DashboardRange, string> = {
-  "7d": "7d",
-  "30d": "30d",
-  "90d": "90d",
+  "2w": "2w",
+  "4w": "4w",
+  "8w": "8w",
 };
 
 export function Topbar({

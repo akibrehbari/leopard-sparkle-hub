@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Loader2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -41,6 +41,11 @@ export function EditInfluencerDialog({ influencer, open, onOpenChange }: Props) 
   const [inflowwCreatorId, setInflowwCreatorId] = useState("");
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [removeAvatar, setRemoveAvatar] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (influencer) {
@@ -51,15 +56,60 @@ export function EditInfluencerDialog({ influencer, open, onOpenChange }: Props) 
       setInflowwCreatorId(influencer.inflowwCreatorId ?? "");
       setLoginUsername(influencer.loginUsername ?? "");
       setLoginPassword("");
+      setAvatarFile(null);
+      setAvatarPreview(null);
+      setRemoveAvatar(false);
     }
   }, [influencer]);
 
   if (!influencer) return null;
 
-  const submit = () => {
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarFile(file);
+    setAvatarPreview(URL.createObjectURL(file));
+    setRemoveAvatar(false);
+  };
+
+  const handleRemoveAvatar = () => {
+    setAvatarFile(null);
+    setAvatarPreview(null);
+    setRemoveAvatar(true);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const currentAvatar = avatarPreview ?? (removeAvatar ? null : influencer.avatarUrl);
+
+  const submit = async () => {
     const handlesPayload: Record<string, string> = {};
     for (const k of PLATFORM_KEYS) {
       handlesPayload[k] = handles[k]?.trim() ?? "";
+    }
+
+    let resolvedAvatarUrl: string | null | undefined = undefined;
+
+    if (avatarFile) {
+      setUploading(true);
+      try {
+        const fd = new FormData();
+        fd.append("file", avatarFile);
+        const res = await fetch("/api/upload/avatar", { method: "POST", body: fd });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error ?? "Upload failed");
+        resolvedAvatarUrl = json.url as string;
+      } catch (e) {
+        setUploading(false);
+        toast({
+          title: "Avatar upload failed",
+          description: (e as Error).message,
+          variant: "destructive",
+        });
+        return;
+      }
+      setUploading(false);
+    } else if (removeAvatar) {
+      resolvedAvatarUrl = null;
     }
 
     update.mutate(
@@ -71,6 +121,7 @@ export function EditInfluencerDialog({ influencer, open, onOpenChange }: Props) 
           inflowwCreatorId: inflowwCreatorId.trim() || null,
           loginUsername: loginUsername.trim().toLowerCase() || undefined,
           ...(loginPassword ? { loginPassword } : {}),
+          ...(resolvedAvatarUrl !== undefined ? { avatarUrl: resolvedAvatarUrl } : {}),
         },
       },
       {
@@ -108,6 +159,45 @@ export function EditInfluencerDialog({ influencer, open, onOpenChange }: Props) 
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {/* Avatar picker */}
+          <div className="flex flex-col items-center gap-2 pb-1">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="relative group size-20 rounded-full border-2 border-dashed border-border hover:border-primary transition-colors overflow-hidden bg-muted flex items-center justify-center"
+            >
+              {currentAvatar ? (
+                <>
+                  <img src={currentAvatar} alt="Avatar" className="size-full object-cover" />
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <Upload className="size-5 text-white" />
+                  </div>
+                </>
+              ) : (
+                <Upload className="size-5 text-muted-foreground" />
+              )}
+            </button>
+            {currentAvatar && (
+              <button
+                type="button"
+                onClick={handleRemoveAvatar}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"
+              >
+                <X className="size-3" /> Remove photo
+              </button>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {currentAvatar ? "Click photo to change" : "Upload profile photo (optional)"}
+            </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleAvatarChange}
+            />
+          </div>
+
           <div className="space-y-1.5">
             <Label htmlFor="inf-edit-name">Name</Label>
             <Input
@@ -177,9 +267,9 @@ export function EditInfluencerDialog({ influencer, open, onOpenChange }: Props) 
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={submit} disabled={!canSubmit || update.isPending}>
-            {update.isPending && <Loader2 className="size-4 animate-spin" />}
-            Save changes
+          <Button onClick={submit} disabled={!canSubmit || update.isPending || uploading}>
+            {(update.isPending || uploading) && <Loader2 className="size-4 animate-spin" />}
+            {uploading ? "Uploading…" : "Save changes"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -194,7 +194,7 @@ class ShareController {
     if (raw && (DASHBOARD_RANGES as readonly string[]).includes(raw)) {
       return raw as DashboardRange;
     }
-    return "30d";
+    return "4w";
   }
 
   private async fetchEntries(

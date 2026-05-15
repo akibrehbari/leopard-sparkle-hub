@@ -28,7 +28,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ArrowDownRight, ArrowUpRight, DollarSign, Pencil, Plus, Receipt, Target, TrendingUp, Wallet } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, DollarSign, Pencil, Plus, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ChartCard } from "@/components/dashboard/ChartCard";
@@ -47,7 +47,7 @@ import type {
 } from "@/lib/utils/derive";
 import { onlyFansSummary } from "@/lib/utils/derive";
 import { useEntries } from "@/lib/entries/entries.hooks";
-import { formatPercent, formatUSD } from "@/lib/utils/format";
+import { formatUSD } from "@/lib/utils/format";
 import { currentWeekKey, lastNWeeks, weekShortLabel } from "@/lib/utils/week";
 
 const HISTORY_WEEKS = 12;
@@ -79,6 +79,12 @@ export function OnlyFansAttributionSection({
 }: Props) {
   const usePrefetched = prefetchedEntries !== undefined;
   const weekKeys = useMemo(() => lastNWeeks(HISTORY_WEEKS), []);
+
+  /** Only show acquisition sources where the influencer has a handle set. */
+  const activeSources = useMemo(
+    () => ACQUISITION_PLATFORM_KEYS.filter((src) => !!influencer.handles?.[src]),
+    [influencer.handles],
+  );
 
   const entriesQ = useEntries(
     {
@@ -156,10 +162,10 @@ export function OnlyFansAttributionSection({
       </div>
 
       {/* KPI tiles */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <KpiCard
           label="Total revenue"
-          value={formatUSD(summary.totals.revenue, { fractional: true })}
+          value={formatUSD(summary.totals.revenue)}
           icon={DollarSign}
           accent="success"
           hint={`${HISTORY_WEEKS}-week window`}
@@ -172,80 +178,59 @@ export function OnlyFansAttributionSection({
           hint="Ads + content + other costs"
         />
         <KpiCard
-          label="Net"
-          value={formatUSD(summary.totals.net, { fractional: true })}
-          icon={Receipt}
-          accent={summary.totals.net >= 0 ? "success" : "instagram"}
-          hint={summary.totals.net >= 0 ? "Profit" : "Loss"}
-        />
-        <KpiCard
-          label="ROAS"
-          value={
-            summary.totals.roas === null
-              ? "—"
-              : `${summary.totals.roas.toFixed(2)}\u00d7`
-          }
-          icon={Target}
-          accent="primary"
-          hint={
-            summary.totals.roas === null
-              ? "No spend in window"
-              : "Revenue per $ spent"
-          }
-        />
-        <KpiCard
-          label="ROI"
-          value={
-            summary.totals.roi === null
-              ? "—"
-              : formatPercent(summary.totals.roi, 1)
-          }
+          label="Revenue / claim"
+          value={summary.totals.revenuePerClaim === null ? "—" : formatUSD(summary.totals.revenuePerClaim, { fractional: true })}
           icon={TrendingUp}
-          accent={
-            summary.totals.roi === null
-              ? "primary"
-              : summary.totals.roi >= 0
-                ? "success"
-                : "instagram"
-          }
-          hint={
-            summary.totals.roi === null
-              ? "No spend in window"
-              : "(revenue − spend) / spend"
-          }
+          accent="success"
+          hint={summary.totals.revenuePerClaim === null ? "No claims yet" : "Revenue earned per claim"}
+        />
+        <KpiCard
+          label="Cost / claim"
+          value={summary.totals.costPerClaim === null ? "—" : formatUSD(summary.totals.costPerClaim, { fractional: true })}
+          icon={TrendingDown}
+          accent="info"
+          hint={summary.totals.costPerClaim === null ? "No claims yet" : "Spend per claim"}
         />
       </div>
 
-      {/* Stacked charts */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
-        <ChartCard
-          title="Revenue by source"
-          subtitle="Per-week earnings stacked by traffic source"
-        >
-          <SourceStackedChart
-            data={chartData}
-            metric="rev"
-            loading={isLoading}
-          />
-        </ChartCard>
-        <ChartCard
-          title="Spend by source"
-          subtitle="Per-week spend stacked by traffic source"
-        >
-          <SourceStackedChart
-            data={chartData}
-            metric="spd"
-            loading={isLoading}
-          />
-        </ChartCard>
-      </div>
+      {/* Stacked charts — only shown when there are active sources */}
+      {activeSources.length > 0 && (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
+          <ChartCard
+            title="Revenue by source"
+            subtitle="Per-week earnings stacked by traffic source"
+          >
+            <SourceStackedChart
+              data={chartData}
+              metric="rev"
+              loading={isLoading}
+              activeSources={activeSources}
+            />
+          </ChartCard>
+          <ChartCard
+            title="Spend by source"
+            subtitle="Per-week spend stacked by traffic source"
+          >
+            <SourceStackedChart
+              data={chartData}
+              metric="spd"
+              loading={isLoading}
+              activeSources={activeSources}
+            />
+          </ChartCard>
+        </div>
+      )}
 
-      {/* Per-source mini cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {summary.bySource.map((src) => (
-          <SourceCard key={src.source} source={src} />
-        ))}
-      </div>
+      {/* Per-source mini cards — only for active sources */}
+      {activeSources.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {summary.bySource
+            .filter((src) => activeSources.includes(src.source))
+            .map((src) => (
+              <SourceCard key={src.source} source={src} />
+            ))}
+        </div>
+      )}
 
       {!readOnly && (
         <EntryFormModal
@@ -255,6 +240,7 @@ export function OnlyFansAttributionSection({
           influencerName={influencer.name}
           platform="onlyfans"
           weekKey={modalWeek}
+          activeSources={activeSources}
         />
       )}
     </>
@@ -269,14 +255,15 @@ interface SourceStackedChartProps {
   data: Array<Record<string, string | number>>;
   metric: "rev" | "spd";
   loading?: boolean;
+  activeSources: AcquisitionPlatformKey[];
 }
 
-function SourceStackedChart({ data, metric, loading }: SourceStackedChartProps) {
+function SourceStackedChart({ data, metric, loading, activeSources }: SourceStackedChartProps) {
   if (loading) {
     return <div className="h-[240px] grid place-items-center text-xs text-muted-foreground">Loading…</div>;
   }
   const allZero = data.every((d) =>
-    ACQUISITION_PLATFORM_KEYS.every((src) => Number(d[`${src}_${metric}`] ?? 0) === 0),
+    activeSources.every((src) => Number(d[`${src}_${metric}`] ?? 0) === 0),
   );
   if (allZero) {
     return (
@@ -307,12 +294,12 @@ function SourceStackedChart({ data, metric, loading }: SourceStackedChartProps) 
               fontSize: 11,
             }}
             formatter={(v: number, name) => [
-              formatUSD(Number(v), { fractional: true }),
+              formatUSD(Number(v), { fractional: metric === "spd" }),
               tooltipLabelFor(name as string),
             ]}
             labelFormatter={(label) => `Week ${label}`}
           />
-          {ACQUISITION_PLATFORM_KEYS.map((src) => (
+          {activeSources.map((src) => (
             <Bar
               key={src}
               dataKey={`${src}_${metric}`}
@@ -325,7 +312,7 @@ function SourceStackedChart({ data, metric, loading }: SourceStackedChartProps) 
       </ResponsiveContainer>
       {/* Legend */}
       <div className="flex items-center gap-3 mt-2 flex-wrap text-[11px] text-muted-foreground">
-        {ACQUISITION_PLATFORM_KEYS.map((src) => (
+        {activeSources.map((src) => (
           <div key={src} className="inline-flex items-center gap-1.5">
             <span
               className="size-2 rounded-sm"
@@ -366,12 +353,12 @@ function SourceCard({ source }: { source: OnlyFansSourceSummary }) {
           className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-md"
           style={{ background: `${color}20`, color }}
         >
-          {source.roas === null ? "—" : `${source.roas.toFixed(2)}\u00d7 ROAS`}
+          {source.claims > 0 ? `${source.claims.toLocaleString("en-US")} claims` : "—"}
         </span>
       </div>
-      <div className="grid grid-cols-3 gap-2 mb-3">
+      <div className="grid grid-cols-3 gap-2 mb-2">
         <Stat label="Revenue" value={formatUSD(source.revenue, { fractional: false })} />
-        <Stat label="Spend" value={formatUSD(source.spend, { fractional: false })} />
+        <Stat label="Spend" value={formatUSD(source.spend, { fractional: true })} />
         <Stat
           label="Net"
           value={formatUSD(source.net, { fractional: false })}
@@ -384,6 +371,11 @@ function SourceCard({ source }: { source: OnlyFansSourceSummary }) {
             )
           }
         />
+      </div>
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        <Stat label="Claims" value={source.claims.toLocaleString("en-US")} />
+        <Stat label="Rev / claim" value={source.revenuePerClaim === null ? "—" : formatUSD(source.revenuePerClaim, { fractional: true })} />
+        <Stat label="Cost / claim" value={source.costPerClaim === null ? "—" : formatUSD(source.costPerClaim, { fractional: true })} />
       </div>
       <Sparkline data={source.weekly} color={color} />
       <div className="text-[10px] text-muted-foreground mt-2 text-center">

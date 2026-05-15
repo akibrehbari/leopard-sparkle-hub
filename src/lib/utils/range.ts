@@ -6,24 +6,24 @@
  * helpers are about display rather than query slicing.
  */
 
-export type DashboardRange = "7d" | "30d" | "90d";
+export type DashboardRange = "2w" | "4w" | "8w";
 
 export const DASHBOARD_RANGES: readonly DashboardRange[] = [
-  "7d",
-  "30d",
-  "90d",
+  "2w",
+  "4w",
+  "8w",
 ];
 
 export const RANGE_LABELS: Record<DashboardRange, string> = {
-  "7d": "Last 7 days",
-  "30d": "Last 30 days",
-  "90d": "Last 90 days",
+  "2w": "Last 2 weeks",
+  "4w": "Last 4 weeks",
+  "8w": "Last 8 weeks",
 };
 
 export const RANGE_DAYS: Record<DashboardRange, number> = {
-  "7d": 7,
-  "30d": 30,
-  "90d": 90,
+  "2w": 14,
+  "4w": 28,
+  "8w": 56,
 };
 
 /** Resolve a relative range to absolute Date bounds. */

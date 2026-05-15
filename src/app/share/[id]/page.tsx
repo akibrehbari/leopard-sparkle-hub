@@ -24,7 +24,7 @@ function parseRange(raw: string | undefined): DashboardRange {
   if (raw && (DASHBOARD_RANGES as readonly string[]).includes(raw)) {
     return raw as DashboardRange;
   }
-  return "30d";
+  return "4w";
 }
 
 export default async function LegacySharePage({ params, searchParams }: Props) {

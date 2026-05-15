@@ -26,6 +26,8 @@ export interface Influencer {
   ofNotes?: string | null;
   /** Weekly tracker notes editable by data-entry workers. */
   trackerNotes?: string | null;
+  /** Public URL of the influencer's avatar image. */
+  avatarUrl?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -34,8 +36,10 @@ export interface Influencer {
 export interface CreateInfluencerBody {
   name: string;
   handles?: InfluencerHandles;
+  inflowwCreatorId?: string;
   loginUsername?: string;
   loginPassword?: string;
+  avatarUrl?: string;
 }
 
 /** Body for PATCH /api/influencers/:id (edit). */
@@ -48,4 +52,5 @@ export interface UpdateInfluencerBody {
   marketingNotes?: string | null;
   ofNotes?: string | null;
   trackerNotes?: string | null;
+  avatarUrl?: string | null;
 }

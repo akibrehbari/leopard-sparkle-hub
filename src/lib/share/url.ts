@@ -60,7 +60,7 @@ export function parseShareParams(raw: {
     selectedRaw && ids.includes(selectedRaw) ? selectedRaw : ids[0];
   const range = (DASHBOARD_RANGES as readonly string[]).includes(rangeRaw ?? "")
     ? (rangeRaw as DashboardRange)
-    : "30d";
+    : "4w";
 
   return { ids, selected, range };
 }

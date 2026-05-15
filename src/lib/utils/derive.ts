@@ -124,10 +124,14 @@ export interface OnlyFansWeekPoint {
   revenue: Record<AcquisitionPlatformKey, number>;
   /** Per-source spend in USD. Always present (0 when missing). */
   spend: Record<AcquisitionPlatformKey, number>;
+  /** Per-source claims count. Always present (0 when missing). */
+  claims: Record<AcquisitionPlatformKey, number>;
   /** Sum of per-source revenue. */
   totalRevenue: number;
   /** Sum of per-source spend. */
   totalSpend: number;
+  /** Sum of per-source claims. */
+  totalClaims: number;
   net: number;
   /** revenue / spend; null when spend is 0. */
   roas: number | null;
@@ -139,10 +143,15 @@ export interface OnlyFansSourceSummary {
   source: AcquisitionPlatformKey;
   revenue: number;
   spend: number;
+  claims: number;
   net: number;
   roas: number | null;
   /** (revenue - spend) / spend * 100; null when spend is 0. */
   roi: number | null;
+  /** revenue / claims; null when claims is 0. */
+  revenuePerClaim: number | null;
+  /** spend / claims; null when claims is 0. */
+  costPerClaim: number | null;
   /** Per-week revenue series (USD) for sparkline rendering. */
   weekly: { weekKey: string; revenue: number; spend: number }[];
 }
@@ -153,10 +162,15 @@ export interface OnlyFansSummary {
   totals: {
     revenue: number;
     spend: number;
+    claims: number;
     net: number;
     roas: number | null;
     /** (revenue - spend) / spend * 100; null when spend is 0. */
     roi: number | null;
+    /** revenue / claims; null when claims is 0. */
+    revenuePerClaim: number | null;
+    /** spend / claims; null when claims is 0. */
+    costPerClaim: number | null;
   };
   /** One summary per acquisition platform. */
   bySource: OnlyFansSourceSummary[];
@@ -173,10 +187,10 @@ export function onlyFansSummary(
   const byWeek = indexEntriesByWeek(entries);
   const ordered = sortedWeekKeys(weekKeys);
 
-  const sourceTotals: Record<AcquisitionPlatformKey, { revenue: number; spend: number }> = {
-    reddit: { revenue: 0, spend: 0 },
-    instagram: { revenue: 0, spend: 0 },
-    x: { revenue: 0, spend: 0 },
+  const sourceTotals: Record<AcquisitionPlatformKey, { revenue: number; spend: number; claims: number }> = {
+    reddit: { revenue: 0, spend: 0, claims: 0 },
+    instagram: { revenue: 0, spend: 0, claims: 0 },
+    x: { revenue: 0, spend: 0, claims: 0 },
   };
 
   const sourceWeekly: Record<AcquisitionPlatformKey, { weekKey: string; revenue: number; spend: number }[]> = {
@@ -199,14 +213,22 @@ export function onlyFansSummary(
       instagram: 0,
       x: 0,
     };
+    const claims: Record<AcquisitionPlatformKey, number> = {
+      reddit: 0,
+      instagram: 0,
+      x: 0,
+    };
 
     for (const src of ACQUISITION_PLATFORM_KEYS) {
       const r = data[onlyFansFieldKey("revenue", src)];
       const s = data[onlyFansFieldKey("spend", src)];
+      const c = data[onlyFansFieldKey("claims", src)];
       revenue[src] = typeof r === "number" ? centsToUsd(r) : 0;
       spend[src] = typeof s === "number" ? centsToUsd(s) : 0;
+      claims[src] = typeof c === "number" ? c : 0;
       sourceTotals[src].revenue += revenue[src];
       sourceTotals[src].spend += spend[src];
+      sourceTotals[src].claims += claims[src];
       sourceWeekly[src].push({
         weekKey: wk,
         revenue: revenue[src],
@@ -216,6 +238,7 @@ export function onlyFansSummary(
 
     const totalRevenue = revenue.reddit + revenue.instagram + revenue.x;
     const totalSpend = spend.reddit + spend.instagram + spend.x;
+    const totalClaims = claims.reddit + claims.instagram + claims.x;
     const net = totalRevenue - totalSpend;
     const roas = totalSpend > 0 ? totalRevenue / totalSpend : null;
     const roi = totalSpend > 0 ? ((totalRevenue - totalSpend) / totalSpend) * 100 : null;
@@ -224,8 +247,10 @@ export function onlyFansSummary(
       weekKey: wk,
       revenue,
       spend,
+      claims,
       totalRevenue,
       totalSpend,
+      totalClaims,
       net,
       roas,
       roi,
@@ -240,26 +265,37 @@ export function onlyFansSummary(
     sourceTotals.reddit.spend +
     sourceTotals.instagram.spend +
     sourceTotals.x.spend;
+  const totalClaims =
+    sourceTotals.reddit.claims +
+    sourceTotals.instagram.claims +
+    sourceTotals.x.claims;
 
   return {
     weeks,
     totals: {
       revenue: totalRevenue,
       spend: totalSpend,
+      claims: totalClaims,
       net: totalRevenue - totalSpend,
       roas: totalSpend > 0 ? totalRevenue / totalSpend : null,
       roi: totalSpend > 0 ? ((totalRevenue - totalSpend) / totalSpend) * 100 : null,
+      revenuePerClaim: totalClaims > 0 ? totalRevenue / totalClaims : null,
+      costPerClaim: totalClaims > 0 ? totalSpend / totalClaims : null,
     },
     bySource: ACQUISITION_PLATFORM_KEYS.map((src) => {
       const r = sourceTotals[src].revenue;
       const s = sourceTotals[src].spend;
+      const c = sourceTotals[src].claims;
       return {
         source: src,
         revenue: r,
         spend: s,
+        claims: c,
         net: r - s,
         roas: s > 0 ? r / s : null,
         roi: s > 0 ? ((r - s) / s) * 100 : null,
+        revenuePerClaim: c > 0 ? r / c : null,
+        costPerClaim: c > 0 ? s / c : null,
         weekly: sourceWeekly[src],
       };
     }),

@@ -63,6 +63,11 @@ interface Props {
   weekKey: string;
   /** When true, hides revenue/spend/cost fields — used for worker portals. */
   hideFinancials?: boolean;
+  /**
+   * For OnlyFans: which acquisition sources to show. Defaults to all sources.
+   * Pass only the sources where the influencer has a handle set.
+   */
+  activeSources?: AcquisitionPlatformKey[];
 }
 
 export function EntryFormModal({
@@ -73,6 +78,7 @@ export function EntryFormModal({
   platform,
   weekKey,
   hideFinancials,
+  activeSources,
 }: Props) {
   const { toast } = useToast();
   const { data: platforms, isLoading: platformsLoading } = usePlatforms();
@@ -127,10 +133,13 @@ export function EntryFormModal({
       // note field alongside each metric
       shape[`_note_${f.key}`] = z.string().optional();
     }
-    // chatter note per acquisition source (OnlyFans only)
+    // single chatter note + per-source subscription type checkboxes for OnlyFans
     if (platform === "onlyfans") {
+      shape[`_chatternote_global`] = z.string().optional();
       for (const src of ACQUISITION_PLATFORM_KEYS) {
-        shape[`_chatternote_${src}`] = z.string().optional();
+        shape[`_chk_freesub_${src}`]  = z.boolean().optional();
+        shape[`_chk_paidsub_${src}`]  = z.boolean().optional();
+        shape[`_chk_freetrial_${src}`] = z.boolean().optional();
       }
     }
     return z.object(shape);
@@ -160,8 +169,11 @@ export function EntryFormModal({
       defaults[`_note_${f.key}`] = existingEntry?.notes?.[f.key] ?? "";
     }
     if (platform === "onlyfans") {
+      defaults[`_chatternote_global`] = existingEntry?.notes?.["chatter_global"] ?? "";
       for (const src of ACQUISITION_PLATFORM_KEYS) {
-        defaults[`_chatternote_${src}`] = existingEntry?.notes?.[`chatter_${src}`] ?? "";
+        defaults[`_chk_freesub_${src}`]  = !!(existingEntry?.data?.[`freesub_${src}`]);
+        defaults[`_chk_paidsub_${src}`]  = !!(existingEntry?.data?.[`paidsub_${src}`]);
+        defaults[`_chk_freetrial_${src}`] = !!(existingEntry?.data?.[`freetrial_${src}`]);
       }
     }
     form.reset(defaults);
@@ -180,6 +192,10 @@ export function EntryFormModal({
       } else if (k.startsWith("_note_")) {
         const fieldKey = k.slice(6);
         if (typeof v === "string" && v.trim()) notes[fieldKey] = v.trim();
+      } else if (k.startsWith("_chk_")) {
+        // checkbox flags: store as 1/0 in data
+        const dataKey = k.slice(5);
+        data[dataKey] = v ? 1 : 0;
       } else {
         data[k] = v as number | string;
       }
@@ -286,6 +302,7 @@ export function EntryFormModal({
                 form={form}
                 influencerId={influencerId}
                 hideFinancials={hideFinancials}
+                activeSources={activeSources}
               />
             ) : (
               platformDef.fields.map((f) => (
@@ -421,6 +438,7 @@ function OnlyFansFields({
   form,
   influencerId,
   hideFinancials,
+  activeSources,
 }: {
   fieldByKey: Map<string, PlatformField>;
   existingData: Record<string, number> | undefined;
@@ -428,6 +446,7 @@ function OnlyFansFields({
   form: any;
   influencerId: string;
   hideFinancials?: boolean;
+  activeSources?: AcquisitionPlatformKey[];
 }) {
   const subscribersField = fieldByKey.get("subscribers");
   const [syncState, setSyncState] = useState<"idle" | "loading" | "error">("idle");
@@ -454,9 +473,11 @@ function OnlyFansFields({
     }
   }, [influencerId, form]);
 
+  const visibleSources = activeSources ?? ACQUISITION_PLATFORM_KEYS;
+
   return (
     <div className="space-y-4">
-      {ACQUISITION_PLATFORM_KEYS.map((src) => {
+      {visibleSources.map((src) => {
         const subsKey = onlyFansFieldKey("subs", src);
         const revKey = onlyFansFieldKey("revenue", src);
         const spdKey = onlyFansFieldKey("spend", src);
@@ -494,7 +515,7 @@ function OnlyFansFields({
             <div className="space-y-3 mt-1">
               <div className="space-y-1">
                 <Label htmlFor={`f-${subsKey}`} className="text-[11px]">
-                  Subs this week
+                  Subscribers this week
                 </Label>
                 <Input
                   id={`f-${subsKey}`}
@@ -511,27 +532,34 @@ function OnlyFansFields({
                   </p>
                 )}
               </div>
+
+              {/* Subscription type checkboxes */}
+              <div className="space-y-1.5">
+                <span className="text-[11px] text-muted-foreground block">Subscription type</span>
+                <div className="flex flex-wrap gap-4">
+                  {[
+                    { key: `_chk_freesub_${src}`,  label: "Free" },
+                    { key: `_chk_paidsub_${src}`,  label: "Paid" },
+                    { key: `_chk_freetrial_${src}`, label: "FTL" },
+                  ].map(({ key, label }) => (
+                    <label key={key} className="flex items-center gap-1.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        className="size-3.5 rounded border-border accent-primary cursor-pointer"
+                        {...form.register(key)}
+                      />
+                      <span className="text-[12px] text-foreground">{label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
               {!hideFinancials && revField && spdField && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <CompactCurrencyInput field={revField} form={form} label="Revenue" />
                   <CompactCurrencyInput field={spdField} form={form} label="Total spend" />
                 </div>
               )}
-              {!hideFinancials && spdField?.hint && (
-                <p className="text-[11px] text-muted-foreground">{spdField.hint}</p>
-              )}
-              <div className="space-y-1 pt-1">
-                <Label htmlFor={`chatter-${src}`} className="text-[11px]">
-                  Note from chatter
-                </Label>
-                <textarea
-                  id={`chatter-${src}`}
-                  placeholder="Add chatter notes… (optional)"
-                  rows={2}
-                  className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs text-muted-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring resize-none"
-                  {...form.register(`_chatternote_${src}`)}
-                />
-              </div>
             </div>
           </fieldset>
         );
@@ -577,6 +605,20 @@ function OnlyFansFields({
           )}
         </div>
       )}
+
+      {/* Single chatter note for the whole entry */}
+      <div className="rounded-lg border border-border bg-secondary/20 p-3 space-y-2">
+        <Label htmlFor="chatter-note-global" className="text-xs font-semibold uppercase tracking-wider">
+          Note from chatter
+        </Label>
+        <textarea
+          id="chatter-note-global"
+          placeholder="Add chatter notes… (optional)"
+          rows={3}
+          className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+          {...form.register("_chatternote_global")}
+        />
+      </div>
     </div>
   );
 }

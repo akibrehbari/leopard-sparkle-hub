@@ -35,6 +35,8 @@ export interface InfluencerDoc {
   ofNotes?: string | null;
   /** Weekly tracker notes — editable by data-entry workers, shown in their portal. */
   trackerNotes?: string | null;
+  /** Public URL of the influencer's avatar image (stored in Vercel Blob). */
+  avatarUrl?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -67,6 +69,7 @@ const InfluencerSchema = new Schema<InfluencerDoc>(
     marketingNotes: { type: String, default: null },
     ofNotes: { type: String, default: null },
     trackerNotes: { type: String, default: null },
+    avatarUrl: { type: String, default: null },
   },
   { timestamps: true, collection: "influencers" },
 );

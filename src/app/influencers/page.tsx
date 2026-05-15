@@ -111,10 +111,18 @@ export default function InfluencersPage() {
                   <TableRow key={inf._id}>
                     <TableCell>
                       <div className="flex items-center gap-2.5">
-                        <div className="size-7 rounded-full bg-gradient-primary grid place-items-center shrink-0">
-                          <span className="text-primary-foreground text-[11px] font-semibold">
-                            {(inf.name[0] ?? "?").toUpperCase()}
-                          </span>
+                        <div className="size-8 rounded-full shrink-0 overflow-hidden bg-gradient-primary grid place-items-center">
+                          {inf.avatarUrl ? (
+                            <img
+                              src={inf.avatarUrl}
+                              alt={inf.name}
+                              className="size-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-primary-foreground text-[11px] font-semibold">
+                              {(inf.name[0] ?? "?").toUpperCase()}
+                            </span>
+                          )}
                         </div>
                         <span className="font-medium truncate">{inf.name}</span>
                       </div>
