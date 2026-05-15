@@ -60,6 +60,17 @@ export function useUpsertSubredditSnapshot() {
   return useMutation({
     mutationFn: (body: UpsertSubredditSnapshotBody) =>
       subredditsService.upsertSnapshot(body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: LIST_KEY }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: LIST_KEY });
+      qc.invalidateQueries({ queryKey: ["subreddit-snapshots"] });
+    },
+  });
+}
+
+export function useSubredditSnapshots(weekKeys: string[]) {
+  return useQuery({
+    queryKey: ["subreddit-snapshots", weekKeys],
+    queryFn: () => subredditsService.listSnapshots(weekKeys),
+    enabled: weekKeys.length > 0,
   });
 }

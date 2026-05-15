@@ -6,6 +6,12 @@ import { resolveAgencyContext } from "@/lib/tenancy/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+export async function GET(request: NextRequest) {
+  const ctx = await resolveAgencyContext(request);
+  if (ctx instanceof NextResponse) return ctx;
+  return subredditsController.handleListSnapshots(request, ctx.agencyId);
+}
+
 export async function PATCH(request: NextRequest) {
   const denied = await requireManager(request);
   if (denied) return denied;

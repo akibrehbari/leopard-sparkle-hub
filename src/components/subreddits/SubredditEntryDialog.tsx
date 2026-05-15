@@ -38,15 +38,17 @@ interface Props {
   subreddit: Subreddit | null;
   open: boolean;
   onOpenChange: (o: boolean) => void;
+  /** Pre-select a specific week (e.g. when clicking from the tracker grid). */
+  initialWeekKey?: string;
 }
 
 const WEEKS = lastNWeeks(8);
 
-export function SubredditEntryDialog({ subreddit, open, onOpenChange }: Props) {
+export function SubredditEntryDialog({ subreddit, open, onOpenChange, initialWeekKey }: Props) {
   const { toast } = useToast();
   const upsert = useUpsertSubredditSnapshot();
 
-  const [weekKey, setWeekKey] = useState<string>(WEEKS[WEEKS.length - 1]);
+  const [weekKey, setWeekKey] = useState<string>(initialWeekKey ?? WEEKS[WEEKS.length - 1]);
   const [followers, setFollowers] = useState("");
   const [contributions, setContributions] = useState("");
   const [weeklyVisits, setWeeklyVisits] = useState("");
@@ -54,12 +56,12 @@ export function SubredditEntryDialog({ subreddit, open, onOpenChange }: Props) {
   // Reset fields whenever the dialog opens for a different subreddit.
   useEffect(() => {
     if (open) {
-      setWeekKey(WEEKS[WEEKS.length - 1]);
+      setWeekKey(initialWeekKey ?? WEEKS[WEEKS.length - 1]);
       setFollowers("");
       setContributions("");
       setWeeklyVisits("");
     }
-  }, [open, subreddit?._id]);
+  }, [open, subreddit?._id, initialWeekKey]);
 
   const canSubmit =
     subreddit &&

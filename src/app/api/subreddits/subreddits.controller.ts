@@ -412,6 +412,29 @@ class SubredditsController {
       return this.errorResponse(err, 400);
     }
   }
+
+  /** GET /api/subreddits/snapshots?weekKeys=2026-W18,2026-W17 */
+  async handleListSnapshots(
+    request: NextRequest,
+    agencyId: string,
+  ): Promise<NextResponse> {
+    try {
+      const url = new URL(request.url);
+      const raw = url.searchParams.get("weekKeys") ?? "";
+      const weekKeys = raw.split(",").map((s) => s.trim()).filter(Boolean);
+      if (weekKeys.length === 0) {
+        return NextResponse.json({ data: [] });
+      }
+      await connectMongo();
+      const docs = await SubredditSnapshotModel.find({
+        agencyId: new mongoose.Types.ObjectId(agencyId),
+        weekKey: { $in: weekKeys },
+      }).lean<SubredditSnapshotDoc[]>();
+      return NextResponse.json({ data: docs.map((d) => this.snapshotToJson(d)) });
+    } catch (err) {
+      return this.errorResponse(err);
+    }
+  }
 }
 
 export const subredditsController = new SubredditsController();

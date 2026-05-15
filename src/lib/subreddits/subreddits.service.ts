@@ -46,6 +46,13 @@ class SubredditsService {
     );
     return data.data;
   }
+
+  async listSnapshots(weekKeys: string[]): Promise<SubredditSnapshot[]> {
+    const { data } = await api.get<{ data: SubredditSnapshot[] }>(
+      this.url(`/snapshots?weekKeys=${weekKeys.join(",")}`),
+    );
+    return data.data;
+  }
 }
 
 export const subredditsService = new SubredditsService();
