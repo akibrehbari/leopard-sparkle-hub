@@ -16,11 +16,11 @@
  *     The subscribers field is shown separately at the top with an Infloww sync.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 
 import {
   Dialog,
@@ -303,7 +303,6 @@ export function EntryFormModal({
                 fieldByKey={new Map(platformDef.fields.map((f) => [f.key, f]))}
                 existingData={existingEntry?.data}
                 form={form}
-                influencerId={influencerId}
                 hideFinancials={hideFinancials}
                 activeSources={activeSources}
               />
@@ -439,7 +438,6 @@ function OnlyFansFields({
   fieldByKey,
   existingData,
   form,
-  influencerId,
   hideFinancials,
   activeSources,
 }: {
@@ -447,34 +445,10 @@ function OnlyFansFields({
   existingData: Record<string, number> | undefined;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   form: any;
-  influencerId: string;
   hideFinancials?: boolean;
   activeSources?: AcquisitionPlatformKey[];
 }) {
   const subscribersField = fieldByKey.get("subscribers");
-  const [syncState, setSyncState] = useState<"idle" | "loading" | "error">("idle");
-  const [syncError, setSyncError] = useState<string | null>(null);
-
-  const syncSubscribers = useCallback(async () => {
-    setSyncState("loading");
-    setSyncError(null);
-    try {
-      const res = await fetch(
-        `/api/infloww/subscribers?influencerId=${encodeURIComponent(influencerId)}`,
-      );
-      const json = await res.json();
-      if (!res.ok) {
-        setSyncError(json.error ?? "Infloww sync failed");
-        setSyncState("error");
-        return;
-      }
-      form.setValue("subscribers", String(json.subscribers), { shouldDirty: true });
-      setSyncState("idle");
-    } catch {
-      setSyncError("Network error — could not reach Infloww");
-      setSyncState("error");
-    }
-  }, [influencerId, form]);
 
   const visibleSources = activeSources ?? ACQUISITION_PLATFORM_KEYS;
 
@@ -571,21 +545,9 @@ function OnlyFansFields({
       {/* Subscribers — placed after platform sections */}
       {subscribersField && (
         <div className="rounded-lg border border-border bg-secondary/20 p-3 space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <Label htmlFor="f-subscribers" className="text-xs font-semibold uppercase tracking-wider">
-              Total subscribers
-            </Label>
-            <button
-              type="button"
-              onClick={syncSubscribers}
-              disabled={syncState === "loading"}
-              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-              title="Fetch from Infloww"
-            >
-              <RefreshCw className={`size-3 ${syncState === "loading" ? "animate-spin" : ""}`} />
-              Sync from Infloww
-            </button>
-          </div>
+          <Label htmlFor="f-subscribers" className="text-xs font-semibold uppercase tracking-wider">
+            Total subscribers
+          </Label>
           <Input
             id="f-subscribers"
             type="number"
@@ -597,9 +559,6 @@ function OnlyFansFields({
           />
           {subscribersField.hint && (
             <p className="text-[11px] text-muted-foreground">{subscribersField.hint}</p>
-          )}
-          {syncError && (
-            <p className="text-[11px] text-destructive">{syncError}</p>
           )}
           {form.formState.errors["subscribers"] && (
             <p className="text-[11px] text-destructive">
