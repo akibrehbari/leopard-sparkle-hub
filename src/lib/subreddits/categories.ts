@@ -19,25 +19,9 @@ export interface SubredditCategoryDef {
 }
 
 export const SUBREDDIT_CATEGORIES: readonly SubredditCategoryDef[] = [
-  { key: "promo", label: "Promo / verification" },
-  { key: "amateur", label: "Amateur" },
-  { key: "cosplay", label: "Cosplay" },
-  { key: "fitness", label: "Fitness" },
-  { key: "fashion", label: "Fashion" },
-  { key: "lifestyle", label: "Lifestyle" },
-  { key: "alternative", label: "Alt / goth" },
-  { key: "lingerie", label: "Lingerie" },
-  { key: "couples", label: "Couples" },
-  { key: "solo", label: "Solo" },
-  { key: "feet", label: "Feet" },
-  { key: "bbw", label: "BBW" },
-  { key: "petite", label: "Petite" },
-  { key: "milf", label: "MILF / mature" },
-  { key: "nsfw", label: "NSFW" },
-  { key: "general-nsfw", label: "General NSFW" },
-  { key: "general-sfw", label: "General SFW" },
-  { key: "local", label: "Local / regional" },
-  { key: "other", label: "Other" },
+  { key: "personal", label: "Personal" },
+  { key: "alliance", label: "Alliance" },
+  { key: "friends-alliance", label: "Friend's Alliance" },
 ] as const;
 
 export const SUBREDDIT_CATEGORY_KEYS: readonly string[] =
