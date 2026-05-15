@@ -33,6 +33,8 @@ import type { Influencer } from "@/lib/influencers/types";
 import { cn } from "@/lib/utils";
 
 const RANGE_OPTIONS = [
+  { value: "2", label: "Last 2 weeks" },
+  { value: "4", label: "Last 4 weeks" },
   { value: "8", label: "Last 8 weeks" },
   { value: "12", label: "Last 12 weeks" },
   { value: "24", label: "Last 24 weeks" },
