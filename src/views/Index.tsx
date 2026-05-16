@@ -85,7 +85,8 @@ function DashboardContent() {
   const selectedId = search.get("id") ?? "all";
   const { toast } = useToast();
 
-  const [range, setRange] = useState<DashboardRange>("4w");
+  const isAggregateDerived = (search.get("id") ?? "all") === "all";
+  const [range, setRange] = useState<DashboardRange>(isAggregateDerived ? "4w" : "1w");
   const [exporting, setExporting] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const captureRef = useRef<HTMLDivElement>(null);
@@ -198,6 +199,7 @@ function DashboardContent() {
         onShare={
           influencers.length > 0 ? () => setShareDialogOpen(true) : undefined
         }
+        isIndividual={!isAggregate}
       />
 
       <ShareLinkDialog
@@ -284,6 +286,7 @@ function DashboardContent() {
 /* -------------------------------------------------------------------------- */
 
 const RANGE_TO_WEEKS: Record<DashboardRange, number> = {
+  "1w": 1,
   "2w": 2,
   "4w": 4,
   "8w": 8,

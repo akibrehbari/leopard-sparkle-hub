@@ -28,7 +28,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ArrowDownRight, ArrowUpRight, DollarSign, Pencil, Plus, TrendingDown, TrendingUp, Wallet } from "lucide-react";
+import { DollarSign, Pencil, Plus, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ChartCard } from "@/components/dashboard/ChartCard";
@@ -137,9 +137,6 @@ export function OnlyFansAttributionSection({
   return (
     <>
       <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
-        <div className="text-xs text-muted-foreground">
-          Per-source attribution &middot; last {HISTORY_WEEKS} weeks
-        </div>
         {!readOnly && (
           <Button
             size="sm"
@@ -168,38 +165,31 @@ export function OnlyFansAttributionSection({
           value={formatUSD(summary.totals.revenue)}
           icon={DollarSign}
           accent="success"
-          hint={`${HISTORY_WEEKS}-week window`}
         />
         <KpiCard
           label="Total spend"
           value={formatUSD(summary.totals.spend, { fractional: true })}
           icon={Wallet}
           accent="info"
-          hint="Ads + content + other costs"
         />
         <KpiCard
           label="Revenue / claim"
           value={summary.totals.revenuePerClaim === null ? "—" : formatUSD(summary.totals.revenuePerClaim, { fractional: true })}
           icon={TrendingUp}
           accent="success"
-          hint={summary.totals.revenuePerClaim === null ? "No claims yet" : "Revenue earned per claim"}
         />
         <KpiCard
           label="Cost / claim"
           value={summary.totals.costPerClaim === null ? "—" : formatUSD(summary.totals.costPerClaim, { fractional: true })}
           icon={TrendingDown}
           accent="info"
-          hint={summary.totals.costPerClaim === null ? "No claims yet" : "Spend per claim"}
         />
       </div>
 
       {/* Stacked charts — only shown when there are active sources */}
       {activeSources.length > 0 && (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
-          <ChartCard
-            title="Revenue by source"
-            subtitle="Per-week earnings stacked by traffic source"
-          >
+          <ChartCard title="Revenue by source">
             <SourceStackedChart
               data={chartData}
               metric="rev"
@@ -207,10 +197,7 @@ export function OnlyFansAttributionSection({
               activeSources={activeSources}
             />
           </ChartCard>
-          <ChartCard
-            title="Spend by source"
-            subtitle="Per-week spend stacked by traffic source"
-          >
+          <ChartCard title="Spend by source">
             <SourceStackedChart
               data={chartData}
               metric="spd"
@@ -240,7 +227,7 @@ export function OnlyFansAttributionSection({
           influencerName={influencer.name}
           platform="onlyfans"
           weekKey={modalWeek}
-          activeSources={activeSources}
+          influencerHandles={influencer.handles}
         />
       )}
     </>
@@ -334,7 +321,6 @@ function tooltipLabelFor(dataKey: string): string {
 
 function SourceCard({ source }: { source: OnlyFansSourceSummary }) {
   const color = SOURCE_COLOR[source.source];
-  const positive = source.net >= 0;
   const def = PLATFORMS[source.source];
 
   return (
@@ -356,31 +342,13 @@ function SourceCard({ source }: { source: OnlyFansSourceSummary }) {
           {source.claims > 0 ? `${source.claims.toLocaleString("en-US")} claims` : "—"}
         </span>
       </div>
-      <div className="grid grid-cols-3 gap-2 mb-2">
+      <div className="grid grid-cols-2 gap-2 mb-3">
         <Stat label="Revenue" value={formatUSD(source.revenue, { fractional: false })} />
         <Stat label="Spend" value={formatUSD(source.spend, { fractional: true })} />
-        <Stat
-          label="Net"
-          value={formatUSD(source.net, { fractional: false })}
-          accent={positive ? "text-success" : "text-destructive"}
-          icon={
-            positive ? (
-              <ArrowUpRight className="size-3" />
-            ) : (
-              <ArrowDownRight className="size-3" />
-            )
-          }
-        />
-      </div>
-      <div className="grid grid-cols-3 gap-2 mb-3">
-        <Stat label="Claims" value={source.claims.toLocaleString("en-US")} />
         <Stat label="Rev / claim" value={source.revenuePerClaim === null ? "—" : formatUSD(source.revenuePerClaim, { fractional: true })} />
         <Stat label="Cost / claim" value={source.costPerClaim === null ? "—" : formatUSD(source.costPerClaim, { fractional: true })} />
       </div>
       <Sparkline data={source.weekly} color={color} />
-      <div className="text-[10px] text-muted-foreground mt-2 text-center">
-        Revenue per week, last {source.weekly.length}
-      </div>
     </div>
   );
 }

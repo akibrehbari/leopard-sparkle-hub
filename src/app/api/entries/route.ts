@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
   if (ctx instanceof NextResponse) return ctx;
   return entriesController.handleList(request, ctx.agencyId, {
     pinnedInfluencerId: ctx.influencerId,
+    workerId: ctx.workerId,
     stripSpend: ctx.role === "influencer",
   });
 }

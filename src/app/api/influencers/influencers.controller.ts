@@ -16,6 +16,7 @@ import bcrypt from "bcryptjs";
 import { connectMongo } from "@/lib/db/mongo";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth/session";
 import { InfluencerModel, type InfluencerDoc } from "./influencers.model";
+import { WorkerModel } from "@/app/api/workers/workers.model";
 import { PLATFORM_KEYS } from "@/lib/platforms/registry";
 import type {
   CreateInfluencerBody,
@@ -28,8 +29,12 @@ class InfluencersController {
   private toJson(doc: InfluencerDoc): Influencer {
     const handles: InfluencerHandles = {};
     for (const key of PLATFORM_KEYS) {
-      const v = doc.handles?.[key];
-      if (v) handles[key] = v;
+      const raw = doc.handles?.[key];
+      if (!raw) continue;
+      // Normalize: old docs may have string instead of string[]
+      const arr = Array.isArray(raw) ? raw : [raw as string];
+      const filtered = arr.filter(Boolean) as string[];
+      if (filtered.length > 0) handles[key] = filtered;
     }
     return {
       _id: doc._id.toString(),
@@ -48,16 +53,24 @@ class InfluencersController {
   }
 
   /**
-   * Sanitize an incoming `handles` map. Coerces empty / whitespace strings to
-   * undefined and drops any unknown platform keys.
+   * Sanitize an incoming `handles` map. Normalizes string → [string] for
+   * array platforms, filters empty strings, and keeps onlyfans as a single string.
    */
-  private sanitizeHandles(input: InfluencerHandles | undefined): Record<string, string | null> {
-    const out: Record<string, string | null> = {};
+  private sanitizeHandles(input: InfluencerHandles | undefined): Record<string, string[] | string | null> {
+    const out: Record<string, string[] | string | null> = {};
     if (!input) return out;
     for (const key of PLATFORM_KEYS) {
       const raw = input[key];
-      const trimmed = typeof raw === "string" ? raw.trim() : "";
-      out[key] = trimmed.length > 0 ? trimmed : null;
+      if (key === "onlyfans") {
+        // onlyfans stays single handle
+        const val = Array.isArray(raw) ? raw[0] : (typeof raw === "string" ? raw : "");
+        const trimmed = (val ?? "").trim();
+        out[key] = trimmed.length > 0 ? trimmed : null;
+      } else {
+        // Multi-handle platforms: normalize string → array, filter empties
+        const arr = Array.isArray(raw) ? raw : (typeof raw === "string" ? [raw] : []);
+        out[key] = arr.map((v) => v.trim()).filter(Boolean);
+      }
     }
     return out;
   }
@@ -76,6 +89,7 @@ class InfluencersController {
     _request: NextRequest,
     agencyId: string,
     influencerId?: string,
+    workerId?: string,
   ): Promise<NextResponse> {
     try {
       await connectMongo();
@@ -87,6 +101,13 @@ class InfluencersController {
           return NextResponse.json({ error: "Invalid influencerId" }, { status: 400 });
         }
         filter._id = new mongoose.Types.ObjectId(influencerId);
+      } else if (workerId) {
+        if (!mongoose.isValidObjectId(workerId)) {
+          return NextResponse.json({ error: "Invalid workerId" }, { status: 400 });
+        }
+        const worker = await WorkerModel.findById(workerId, { assignedInfluencerIds: 1 }).lean();
+        const ids = worker?.assignedInfluencerIds ?? [];
+        filter._id = { $in: ids };
       }
       const docs = await InfluencerModel.find(filter)
         .sort({ sortOrder: 1, createdAt: 1 })
@@ -195,7 +216,8 @@ class InfluencersController {
       if (body.handles) {
         const sanitized = this.sanitizeHandles(body.handles);
         for (const key of PLATFORM_KEYS) {
-          update[`handles.${key}`] = sanitized[key] ?? null;
+          const v = sanitized[key];
+          update[`handles.${key}`] = v !== undefined ? v : null;
         }
       }
       if ("inflowwCreatorId" in body) {

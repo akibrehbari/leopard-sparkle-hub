@@ -9,8 +9,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { DASHBOARD_RANGES, type DashboardRange } from "@/lib/utils/range";
-import { Download, FileDown, Link2, Loader2, Search } from "lucide-react";
+import { DASHBOARD_RANGES, INDIVIDUAL_RANGES, type DashboardRange } from "@/lib/utils/range";
+import { Download, FileDown, Link2, Loader2 } from "lucide-react";
 import { AgencyTopbarLinks } from "./AgencyTopbarLinks";
 import { QuickAddButtons } from "./QuickAddButtons";
 
@@ -24,9 +24,15 @@ interface Props {
   onShare?: () => void;
   /** When true, the Export trigger swaps to a spinner while the PDF is generating. */
   exporting?: boolean;
+  /**
+   * When true: hides search bar + QuickAddButtons, shows the Infloww link,
+   * and uses the 1w/4w/8w range set instead of the aggregate 2w/4w/8w set.
+   */
+  isIndividual?: boolean;
 }
 
 const RANGE_LABELS: Record<DashboardRange, string> = {
+  "1w": "1w",
   "2w": "2w",
   "4w": "4w",
   "8w": "8w",
@@ -40,8 +46,10 @@ export function Topbar({
   onExportPdf,
   onShare,
   exporting,
+  isIndividual,
 }: Props) {
   const hasExportActions = Boolean(onExportPdf || onShare);
+  const ranges = isIndividual ? INDIVIDUAL_RANGES : DASHBOARD_RANGES;
 
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
@@ -49,17 +57,23 @@ export function Topbar({
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
           {title}
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
       </div>
       <div className="flex items-center gap-2 no-print">
-        <AgencyTopbarLinks />
-        <QuickAddButtons />
-        <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary/50 border border-border text-sm text-muted-foreground">
-          <Search className="size-4" />
-          <span>Search…</span>
-        </div>
+        {!isIndividual && <AgencyTopbarLinks />}
+        {!isIndividual && <QuickAddButtons />}
+        {isIndividual && (
+          <a
+            href="https://eleopards.com"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Button variant="outline" size="sm" className="gap-2 font-semibold">
+              Infloww
+            </Button>
+          </a>
+        )}
         <div className="flex items-center rounded-lg bg-secondary/50 border border-border p-1">
-          {DASHBOARD_RANGES.map((r) => (
+          {ranges.map((r) => (
             <button
               key={r}
               onClick={() => onRangeChange(r)}

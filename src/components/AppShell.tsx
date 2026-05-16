@@ -31,6 +31,8 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { AnimatedBackground } from "@/components/AnimatedBackground";
 import { useInfluencers } from "@/lib/influencers/influencers.hooks";
 import { useLogout, useSession } from "@/lib/auth/auth.hooks";
 import { isAdmin, isEditorOrAdmin } from "@/lib/auth/roles";
@@ -39,14 +41,20 @@ import { PLATFORMS, PLATFORM_KEYS } from "@/lib/platforms/registry";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex bg-background">
-      <aside className="hidden lg:flex w-72 flex-col border-r border-border bg-sidebar shrink-0 h-screen sticky top-0">
+    <div className="relative min-h-screen flex bg-background">
+      <AnimatedBackground />
+      <aside
+        className="hidden lg:flex w-72 flex-col border-r border-border bg-sidebar/80 backdrop-blur-2xl shrink-0 h-screen sticky top-0"
+        style={{ zIndex: 1 }}
+      >
         <BrandHeader />
         <Suspense fallback={<SidebarFallback />}>
           <SidebarBody />
         </Suspense>
       </aside>
-      <main className="flex-1 min-w-0">{children}</main>
+      <main className="flex-1 min-w-0 relative" style={{ zIndex: 1 }}>
+        {children}
+      </main>
     </div>
   );
 }
@@ -194,8 +202,8 @@ function SidebarBody() {
         </div>
       </div>
 
-      <div className="px-3 py-3 border-t border-sidebar-border space-y-2">
-        <div className="px-3 text-[10px] text-muted-foreground">
+      <div className="px-3 py-3 border-t border-sidebar-border space-y-1">
+        <div className="px-3 pb-1 text-[10px] text-muted-foreground">
           Signed in as{" "}
           <span className="text-foreground font-medium">
             {session?.username ?? "—"}
@@ -206,6 +214,7 @@ function SidebarBody() {
             </span>
           )}
         </div>
+        <ThemeToggle />
         <Button
           variant="ghost"
           size="sm"
@@ -322,7 +331,7 @@ function DashboardLink({
 
 function InfluencerRow({ inf, active }: { inf: Influencer; active: boolean }) {
   const display = inf.name || "Untitled";
-  const handleCount = PLATFORM_KEYS.filter((k) => inf.handles[k]).length;
+  const handleCount = PLATFORM_KEYS.reduce((sum, k) => sum + (inf.handles[k]?.length ?? 0), 0);
 
   return (
     <Link
@@ -334,10 +343,18 @@ function InfluencerRow({ inf, active }: { inf: Influencer; active: boolean }) {
           : "text-sidebar-foreground hover:bg-sidebar-accent/50",
       )}
     >
-      <div className="size-8 rounded-full bg-gradient-primary grid place-items-center shrink-0 ring-1 ring-border">
-        <span className="text-primary-foreground text-xs font-semibold">
-          {(display[0] ?? "?").toUpperCase()}
-        </span>
+      <div className="size-8 rounded-full shrink-0 ring-1 ring-border overflow-hidden bg-gradient-primary grid place-items-center">
+        {inf.avatarUrl ? (
+          <img
+            src={inf.avatarUrl}
+            alt={display}
+            className="size-full object-cover"
+          />
+        ) : (
+          <span className="text-primary-foreground text-xs font-semibold">
+            {(display[0] ?? "?").toUpperCase()}
+          </span>
+        )}
       </div>
       <div className="flex-1 min-w-0">
         <div className="font-medium truncate">{display}</div>
@@ -356,16 +373,17 @@ function PlatformBadges({ inf }: { inf: Influencer }) {
   return (
     <div className="flex items-center gap-0.5 shrink-0">
       {PLATFORM_KEYS.map((key) => {
-        if (!inf.handles[key]) return null;
+        const count = inf.handles[key]?.length ?? 0;
+        if (count === 0) return null;
         const def = PLATFORMS[key];
         return (
           <span
             key={key}
-            title={`Has ${def.label} handle`}
+            title={`Has ${count} ${def.label} handle${count === 1 ? "" : "s"}`}
             className="text-[8px] font-bold uppercase tracking-wider px-1 py-0.5 rounded leading-none border border-border"
             style={{ background: `${def.color}20`, color: def.color }}
           >
-            {def.short}
+            {def.short}{count > 1 ? ` ${count}` : ""}
           </span>
         );
       })}

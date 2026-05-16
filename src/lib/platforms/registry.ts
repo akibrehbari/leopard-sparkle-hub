@@ -126,6 +126,25 @@ export function onlyFansFieldKey(
   return `${metric}_${source}`;
 }
 
+/**
+ * Slot-aware key: index 0 → "subs_reddit" (legacy, backward-compat),
+ * index 1+ → "subs_reddit__1". Used when an influencer has multiple accounts
+ * on the same acquisition platform.
+ */
+export function onlyFansSlotKey(
+  metric: string,
+  source: AcquisitionPlatformKey,
+  index: number,
+): string {
+  return index === 0 ? `${metric}_${source}` : `${metric}_${source}__${index}`;
+}
+
+export interface HandleSlot {
+  source: AcquisitionPlatformKey;
+  index: number;
+  handle: string;
+}
+
 export const PLATFORMS: Record<PlatformKey, PlatformDefinition> = {
   reddit: {
     key: "reddit",
@@ -212,8 +231,22 @@ export const PLATFORMS: Record<PlatformKey, PlatformDefinition> = {
   },
 };
 
+/** "reddit" → 0, "reddit__1" → 1, "reddit__2" → 2 */
+export function parsePlatformSlot(key: string): { base: PlatformKey; index: number } | null {
+  const match = key.match(/^(.+?)(?:__(\d+))?$/);
+  if (!match) return null;
+  const base = match[1] as PlatformKey;
+  if (!PLATFORM_KEYS.includes(base)) return null;
+  return { base, index: match[2] ? parseInt(match[2], 10) : 0 };
+}
+
+/** Build a slot key: index 0 → "reddit", index 1 → "reddit__1" */
+export function platformSlotKey(base: PlatformKey, index: number): string {
+  return index === 0 ? base : `${base}__${index}`;
+}
+
 export function isValidPlatform(key: string): key is PlatformKey {
-  return (PLATFORM_KEYS as string[]).includes(key);
+  return parsePlatformSlot(key) !== null;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -232,13 +265,15 @@ export function isValidPlatform(key: string): key is PlatformKey {
  *   "1234.00".
  */
 export function validateEntryData(
-  platform: PlatformKey,
+  platform: string,
   payload: unknown,
 ): { ok: true; data: Record<string, number> } | { ok: false; error: string } {
   if (typeof payload !== "object" || payload === null) {
     return { ok: false, error: "data must be an object" };
   }
-  const def = PLATFORMS[platform];
+  const slot = parsePlatformSlot(platform);
+  if (!slot) return { ok: false, error: `Unknown platform: ${platform}` };
+  const def = PLATFORMS[slot.base];
   const out: Record<string, number> = {};
   const fieldByKey = new Map(def.fields.map((f) => [f.key, f] as const));
 

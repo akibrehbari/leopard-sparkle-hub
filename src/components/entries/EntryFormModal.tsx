@@ -45,9 +45,12 @@ import {
   ACQUISITION_PLATFORM_KEYS,
   type AcquisitionPlatformKey,
   onlyFansFieldKey,
+  onlyFansSlotKey,
+  type HandleSlot,
   type PlatformField,
   type PlatformKey,
 } from "@/lib/platforms/registry";
+import type { InfluencerHandles } from "@/lib/influencers/types";
 import { centsToUsd, formatNumber, formatUSD } from "@/lib/utils/format";
 import { lastNWeeks, weekShortLabel } from "@/lib/utils/week";
 import { priorCumulativeValue } from "@/lib/utils/derive";
@@ -64,10 +67,10 @@ interface Props {
   /** When true, hides revenue/spend/cost fields — used for worker portals. */
   hideFinancials?: boolean;
   /**
-   * For OnlyFans: which acquisition sources to show. Defaults to all sources.
-   * Pass only the sources where the influencer has a handle set.
+   * The influencer's current handles — used to derive which OnlyFans
+   * acquisition slots to show (one section per handle per platform).
    */
-  activeSources?: AcquisitionPlatformKey[];
+  influencerHandles?: InfluencerHandles;
 }
 
 export function EntryFormModal({
@@ -78,8 +81,18 @@ export function EntryFormModal({
   platform,
   weekKey,
   hideFinancials,
-  activeSources,
+  influencerHandles,
 }: Props) {
+  // Build one slot per handle per acquisition platform (ordered by platform then index).
+  const activeSlots: HandleSlot[] = useMemo(() => {
+    if (!influencerHandles) return [];
+    const slots: HandleSlot[] = [];
+    for (const src of ACQUISITION_PLATFORM_KEYS) {
+      const hs = influencerHandles[src] ?? [];
+      hs.forEach((handle, i) => slots.push({ source: src, index: i, handle }));
+    }
+    return slots;
+  }, [influencerHandles]);
   const { toast } = useToast();
   const { data: platforms, isLoading: platformsLoading } = usePlatforms();
   const platformDef = platforms?.[platform];
@@ -130,16 +143,22 @@ export function EntryFormModal({
         ]);
       }
       shape[f.key] = inner;
-      // note field alongside each metric
-      shape[`_note_${f.key}`] = z.string().optional();
     }
-    // single chatter note + per-source subscription type checkboxes for OnlyFans
+    // single note at the bottom for all non-OnlyFans platforms
+    if (platform !== "onlyfans") {
+      shape[`_note_global`] = z.string().optional();
+    }
+    // chatter note + per-slot checkboxes for OnlyFans
     if (platform === "onlyfans") {
       shape[`_chatternote_global`] = z.string().optional();
-      for (const src of ACQUISITION_PLATFORM_KEYS) {
-        shape[`_chk_freesub_${src}`]  = z.boolean().optional();
-        shape[`_chk_paidsub_${src}`]  = z.boolean().optional();
-        shape[`_chk_freetrial_${src}`] = z.boolean().optional();
+      const slots = activeSlots.length > 0
+        ? activeSlots
+        : ACQUISITION_PLATFORM_KEYS.map((src) => ({ source: src, index: 0, handle: "" }));
+      for (const { source, index } of slots) {
+        const sfx = index === 0 ? "" : `__${index}`;
+        shape[`_chk_freesub_${source}${sfx}`]  = z.boolean().optional();
+        shape[`_chk_paidsub_${source}${sfx}`]  = z.boolean().optional();
+        shape[`_chk_freetrial_${source}${sfx}`] = z.boolean().optional();
       }
     }
     return z.object(shape);
@@ -166,17 +185,23 @@ export function EntryFormModal({
       } else {
         defaults[f.key] = String(raw);
       }
-      defaults[`_note_${f.key}`] = existingEntry?.notes?.[f.key] ?? "";
+    }
+    if (platform !== "onlyfans") {
+      defaults[`_note_global`] = existingEntry?.notes?.["global"] ?? "";
     }
     if (platform === "onlyfans") {
       defaults[`_chatternote_global`] = existingEntry?.notes?.["chatter_global"] ?? "";
-      for (const src of ACQUISITION_PLATFORM_KEYS) {
+      const slots = activeSlots.length > 0
+        ? activeSlots
+        : ACQUISITION_PLATFORM_KEYS.map((src) => ({ source: src, index: 0, handle: "" }));
+      for (const { source, index } of slots) {
+        const sfx = index === 0 ? "" : `__${index}`;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (defaults as any)[`_chk_freesub_${src}`]  = !!(existingEntry?.data?.[`freesub_${src}`]);
+        (defaults as any)[`_chk_freesub_${source}${sfx}`]  = !!(existingEntry?.data?.[`freesub_${source}${sfx}`]);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (defaults as any)[`_chk_paidsub_${src}`]  = !!(existingEntry?.data?.[`paidsub_${src}`]);
+        (defaults as any)[`_chk_paidsub_${source}${sfx}`]  = !!(existingEntry?.data?.[`paidsub_${source}${sfx}`]);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (defaults as any)[`_chk_freetrial_${src}`] = !!(existingEntry?.data?.[`freetrial_${src}`]);
+        (defaults as any)[`_chk_freetrial_${source}${sfx}`] = !!(existingEntry?.data?.[`freetrial_${source}${sfx}`]);
       }
     }
     form.reset(defaults);
@@ -192,9 +217,8 @@ export function EntryFormModal({
       if (k.startsWith("_chatternote_")) {
         const src = k.slice(13);
         if (typeof v === "string" && v.trim()) notes[`chatter_${src}`] = v.trim();
-      } else if (k.startsWith("_note_")) {
-        const fieldKey = k.slice(6);
-        if (typeof v === "string" && v.trim()) notes[fieldKey] = v.trim();
+      } else if (k === "_note_global") {
+        if (typeof v === "string" && v.trim()) notes["global"] = v.trim();
       } else if (k.startsWith("_chk_")) {
         // checkbox flags: store as 1/0 in data
         const dataKey = k.slice(5);
@@ -304,17 +328,31 @@ export function EntryFormModal({
                 existingData={existingEntry?.data}
                 form={form}
                 hideFinancials={hideFinancials}
-                activeSources={activeSources}
+                activeSlots={activeSlots}
               />
             ) : (
-              platformDef.fields.map((f) => (
-                <FieldRow
-                  key={f.key}
-                  field={f}
-                  hint={priorHintFor(f)}
-                  form={form}
-                />
-              ))
+              <>
+                {platformDef.fields.map((f) => (
+                  <FieldRow
+                    key={f.key}
+                    field={f}
+                    hint={priorHintFor(f)}
+                    form={form}
+                  />
+                ))}
+                <div className="space-y-1.5 pt-1">
+                  <Label htmlFor="note-global" className="text-xs text-muted-foreground">
+                    Note <span className="font-normal">(optional)</span>
+                  </Label>
+                  <textarea
+                    id="note-global"
+                    placeholder="Add a note…"
+                    rows={2}
+                    className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+                    {...form.register("_note_global")}
+                  />
+                </div>
+              </>
             )}
 
             <DialogFooter className="pt-2">
@@ -371,7 +409,6 @@ function FieldRow({
   form: any;
 }) {
   const isCurrency = (field.kind ?? "count") === "currencyCents";
-  const noteKey = `_note_${field.key}`;
   const err = form.formState.errors[field.key];
   return (
     <div className="space-y-1.5">
@@ -407,13 +444,6 @@ function FieldRow({
           {String(err.message)}
         </p>
       )}
-      <textarea
-        id={`note-${field.key}`}
-        placeholder="Add a note… (optional)"
-        rows={2}
-        className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs text-muted-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring resize-none"
-        {...form.register(noteKey)}
-      />
     </div>
   );
 }
@@ -439,21 +469,23 @@ function OnlyFansFields({
   existingData,
   form,
   hideFinancials,
-  activeSources,
+  activeSlots,
 }: {
   fieldByKey: Map<string, PlatformField>;
   existingData: Record<string, number> | undefined;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   form: any;
   hideFinancials?: boolean;
-  activeSources?: AcquisitionPlatformKey[];
+  activeSlots: HandleSlot[];
 }) {
   const subscribersField = fieldByKey.get("subscribers");
 
-  const visibleSources = activeSources ?? ACQUISITION_PLATFORM_KEYS;
+  const visibleSlots = activeSlots.length > 0
+    ? activeSlots
+    : ACQUISITION_PLATFORM_KEYS.map((src) => ({ source: src, index: 0, handle: "" }));
 
-  // Auto-sum subscribers from all visible platform sections
-  const subsKeys = visibleSources.map((src) => onlyFansFieldKey("subs", src));
+  // Auto-sum subscribers from all visible slots
+  const subsKeys = visibleSlots.map(({ source, index }) => onlyFansSlotKey("subs", source, index));
   const watchedSubs = form.watch(subsKeys);
   const totalSubs = subsKeys.reduce((sum: number, _: string, i: number) => {
     const v = Number(watchedSubs[i]);
@@ -466,14 +498,16 @@ function OnlyFansFields({
 
   return (
     <div className="space-y-4">
-      {visibleSources.map((src) => {
-        const subsKey = onlyFansFieldKey("subs", src);
-        const revKey = onlyFansFieldKey("revenue", src);
-        const spdKey = onlyFansFieldKey("spend", src);
-        const subsField = fieldByKey.get(subsKey);
-        const revField = fieldByKey.get(revKey);
-        const spdField = fieldByKey.get(spdKey);
-        if (!subsField) return null;
+      {visibleSlots.map(({ source: src, index, handle }) => {
+        const sfx = index === 0 ? "" : `__${index}`;
+        const subsKey = onlyFansSlotKey("subs", src, index);
+        // revenue/spend use the base field definition (same field shape for each slot)
+        const baseRevKey = onlyFansFieldKey("revenue", src);
+        const baseSpdKey = onlyFansFieldKey("spend", src);
+        const revKey = index === 0 ? baseRevKey : `revenue_${src}${sfx}`;
+        const spdKey = index === 0 ? baseSpdKey : `spend_${src}${sfx}`;
+        const revField = fieldByKey.get(baseRevKey);
+        const spdField = fieldByKey.get(baseSpdKey);
 
         const revCents = existingData?.[revKey];
         const spdCents = existingData?.[spdKey];
@@ -481,9 +515,13 @@ function OnlyFansFields({
           (typeof revCents === "number" ? centsToUsd(revCents) : 0) -
           (typeof spdCents === "number" ? centsToUsd(spdCents) : 0);
 
+        const slotLabel = handle
+          ? `${SOURCE_LABELS[src]} · ${src === "reddit" ? `u/${handle}` : `@${handle}`}`
+          : SOURCE_LABELS[src];
+
         return (
           <fieldset
-            key={src}
+            key={`${src}-${index}`}
             className="rounded-lg border border-border bg-secondary/20 p-3"
           >
             <legend className="px-1.5 -ml-1.5 inline-flex items-center gap-1.5">
@@ -492,7 +530,7 @@ function OnlyFansFields({
                 style={{ background: SOURCE_COLORS[src] }}
               />
               <span className="text-xs font-semibold uppercase tracking-wider text-foreground">
-                {SOURCE_LABELS[src]}
+                {slotLabel}
               </span>
               {!hideFinancials && existingData &&
                 (typeof revCents === "number" || typeof spdCents === "number") && (
@@ -527,9 +565,9 @@ function OnlyFansFields({
                 <span className="text-[11px] text-muted-foreground block">Subscription type</span>
                 <div className="flex flex-wrap gap-4">
                   {[
-                    { key: `_chk_freesub_${src}`,  label: "Free" },
-                    { key: `_chk_paidsub_${src}`,  label: "Paid" },
-                    { key: `_chk_freetrial_${src}`, label: "FTL" },
+                    { key: `_chk_freesub_${src}${sfx}`,  label: "Free" },
+                    { key: `_chk_paidsub_${src}${sfx}`,  label: "Paid" },
+                    { key: `_chk_freetrial_${src}${sfx}`, label: "FTL" },
                   ].map(({ key, label }) => (
                     <label key={key} className="flex items-center gap-1.5 cursor-pointer select-none">
                       <input
@@ -545,8 +583,8 @@ function OnlyFansFields({
 
               {!hideFinancials && revField && spdField && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <CompactCurrencyInput field={revField} form={form} label="Revenue" />
-                  <CompactCurrencyInput field={spdField} form={form} label="Total spend" />
+                  <CompactCurrencyInput fieldKey={revKey} form={form} label="Revenue" />
+                  <CompactCurrencyInput fieldKey={spdKey} form={form} label="Total spend" />
                 </div>
               )}
             </div>
@@ -587,19 +625,19 @@ function OnlyFansFields({
 }
 
 function CompactCurrencyInput({
-  field,
+  fieldKey,
   form,
   label,
 }: {
-  field: PlatformField;
+  fieldKey: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   form: any;
   label: string;
 }) {
-  const err = form.formState.errors[field.key];
+  const err = form.formState.errors[fieldKey];
   return (
     <div className="space-y-1">
-      <Label htmlFor={`f-${field.key}`} className="text-[11px]">
+      <Label htmlFor={`f-${fieldKey}`} className="text-[11px]">
         {label}
       </Label>
       <div className="relative">
@@ -607,14 +645,14 @@ function CompactCurrencyInput({
           $
         </span>
         <Input
-          id={`f-${field.key}`}
+          id={`f-${fieldKey}`}
           type="number"
           inputMode="decimal"
           min={0}
           step="0.01"
           placeholder="0.00"
           className="pl-7"
-          {...form.register(field.key)}
+          {...form.register(fieldKey)}
         />
       </div>
       {err && (

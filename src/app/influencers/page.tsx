@@ -55,14 +55,8 @@ import { Label } from "@/components/ui/label";
 import { Button as Btn } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import type { Influencer } from "@/lib/influencers/types";
-import { PLATFORMS, PLATFORM_KEYS, type PlatformKey } from "@/lib/platforms/registry";
+import { PLATFORMS, PLATFORM_KEYS } from "@/lib/platforms/registry";
 
-const HANDLE_PREFIX: Record<PlatformKey, string> = {
-  reddit: "u/",
-  instagram: "@",
-  x: "@",
-  onlyfans: "@",
-};
 
 export default function InfluencersPage() {
   const { data: session } = useSession();
@@ -146,11 +140,6 @@ export default function InfluencersPage() {
                 <TableRow>
                   {canEdit && <TableHead className="w-8" />}
                   <TableHead>Name</TableHead>
-                  {PLATFORM_KEYS.map((k) => (
-                    <TableHead key={k}>{PLATFORMS[k].label}</TableHead>
-                  ))}
-                  <TableHead>Portal login</TableHead>
-                  <TableHead>Infloww ID</TableHead>
                   <TableHead className="w-28" />
                 </TableRow>
               </TableHeader>
@@ -264,25 +253,29 @@ function SortableRow({
               </span>
             )}
           </div>
-          <span className="font-medium truncate">{inf.name}</span>
+          <div className="flex-1 min-w-0">
+            <div className="font-medium truncate">{inf.name}</div>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {PLATFORM_KEYS.map((k) => {
+                const hs = inf.handles[k] ?? [];
+                if (!hs.length) return null;
+                return hs.map((h, i) => (
+                  <span
+                    key={`${k}-${i}`}
+                    className="text-[9px] font-medium px-1.5 py-0.5 rounded-sm border"
+                    style={{
+                      background: `${PLATFORMS[k].color}15`,
+                      color: PLATFORMS[k].color,
+                      borderColor: `${PLATFORMS[k].color}30`,
+                    }}
+                  >
+                    {PLATFORMS[k].short} {k === "reddit" ? `u/${h}` : `@${h}`}
+                  </span>
+                ));
+              })}
+            </div>
+          </div>
         </div>
-      </TableCell>
-      {PLATFORM_KEYS.map((k) => (
-        <TableCell key={k}>
-          <span className="text-xs text-muted-foreground">
-            {inf.handles?.[k] ? `${HANDLE_PREFIX[k]}${inf.handles[k]}` : "—"}
-          </span>
-        </TableCell>
-      ))}
-      <TableCell>
-        <span className="text-xs text-muted-foreground font-mono">
-          {inf.loginUsername ?? "—"}
-        </span>
-      </TableCell>
-      <TableCell>
-        <span className="text-xs text-muted-foreground">
-          {inf.inflowwCreatorId ?? "—"}
-        </span>
       </TableCell>
       <TableCell>
         <div className="flex items-center justify-end gap-1">

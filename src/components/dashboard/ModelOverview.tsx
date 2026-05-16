@@ -81,18 +81,27 @@ export function ModelOverview({
   const handlesByPlatform = PLATFORM_KEYS.flatMap<{
     platform: PlatformKey;
     handle: string;
+    idx: number;
   }>((key) => {
-    const handle = influencer.handles[key];
-    return handle ? [{ platform: key, handle }] : [];
+    const handles = influencer.handles[key] ?? [];
+    return handles.map((handle, idx) => ({ platform: key, handle, idx }));
   });
 
   return (
     <div className="card-surface rounded-xl p-5 flex items-center gap-5 relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-primary opacity-[0.06] pointer-events-none" />
-      <div className="size-16 rounded-2xl bg-gradient-primary grid place-items-center shadow-glow shrink-0 ring-2 ring-primary/30">
-        <span className="text-primary-foreground text-xl font-bold">
-          {(display[0] ?? "?").toUpperCase()}
-        </span>
+      <div className="size-16 rounded-2xl shrink-0 ring-2 ring-primary/30 overflow-hidden bg-gradient-primary grid place-items-center shadow-glow">
+        {influencer.avatarUrl ? (
+          <img
+            src={influencer.avatarUrl}
+            alt={display}
+            className="size-full object-cover"
+          />
+        ) : (
+          <span className="text-primary-foreground text-xl font-bold">
+            {(display[0] ?? "?").toUpperCase()}
+          </span>
+        )}
       </div>
       <div className="flex-1 min-w-0 relative">
         <div className="flex items-center gap-2 flex-wrap">
@@ -104,8 +113,8 @@ export function ModelOverview({
               No handles set yet
             </span>
           )}
-          {handlesByPlatform.map(({ platform, handle }) => (
-            <span key={platform} className="inline-flex items-center gap-1">
+          {handlesByPlatform.map(({ platform, handle, idx }) => (
+            <span key={`${platform}-${idx}`} className="inline-flex items-center gap-1">
               <span
                 className="size-2 rounded-full"
                 style={{ background: PLATFORMS[platform].color }}

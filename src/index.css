@@ -2,54 +2,122 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
-
 @layer base {
+  /* ── Light theme ─────────────────────────────────────────────────────────── */
   :root {
-    /* Cuhvet dark premium theme (single mode) */
-    --background: 230 20% 6%;
-    --foreground: 40 30% 96%;
+    --background: 0 0% 98%;
+    --foreground: 0 0% 6%;
 
-    --card: 230 18% 9%;
-    --card-foreground: 40 30% 96%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 6%;
 
-    --popover: 230 20% 8%;
-    --popover-foreground: 40 30% 96%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 6%;
 
-    --primary: 38 92% 58%;
-    --primary-foreground: 230 25% 8%;
-    --primary-glow: 42 100% 70%;
+    --primary: 0 0% 8%;
+    --primary-foreground: 0 0% 98%;
+    --primary-glow: 0 0% 20%;
 
-    --secondary: 230 14% 14%;
-    --secondary-foreground: 40 30% 96%;
+    --secondary: 0 0% 94%;
+    --secondary-foreground: 0 0% 12%;
 
-    --muted: 230 14% 13%;
-    --muted-foreground: 230 10% 62%;
+    --muted: 0 0% 95%;
+    --muted-foreground: 0 0% 48%;
 
-    --accent: 38 92% 58%;
-    --accent-foreground: 230 25% 8%;
+    --accent: 0 0% 8%;
+    --accent-foreground: 0 0% 98%;
 
-    --destructive: 0 75% 60%;
-    --destructive-foreground: 40 30% 96%;
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 0 0% 100%;
 
-    --success: 152 65% 48%;
-    --success-foreground: 230 25% 8%;
+    --success: 152 58% 38%;
+    --success-foreground: 0 0% 100%;
 
-    --warning: 38 92% 58%;
-    --warning-foreground: 230 25% 8%;
+    --warning: 38 90% 48%;
+    --warning-foreground: 0 0% 100%;
 
-    --info: 210 90% 62%;
-    --info-foreground: 230 25% 8%;
+    --info: 210 88% 52%;
+    --info-foreground: 0 0% 100%;
 
-    --border: 230 14% 16%;
-    --input: 230 14% 16%;
-    --ring: 38 92% 58%;
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
+    --ring: 0 0% 8%;
 
     --radius: 0.75rem;
 
-    /* Platform brand hues (HSL) */
+    /* Platform brand hues */
+    --reddit: 16 100% 50%;
+    --twitter: 200 90% 55%;
+    --instagram: 330 80% 55%;
+    --telegram: 200 85% 50%;
+    --onlyfans: 195 100% 42%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(0 0% 8%), hsl(0 0% 22%));
+    --gradient-card: linear-gradient(160deg, hsl(0 0% 100%) 0%, hsl(0 0% 97%) 100%);
+    --gradient-glow: none;
+    --gradient-revenue: linear-gradient(135deg, hsl(152 58% 38%), hsl(170 62% 46%));
+
+    /* Shadows */
+    --shadow-card: 0 1px 0 0 hsl(0 0% 0% / 0.04), 0 4px 20px -4px hsl(0 0% 0% / 0.07);
+    --shadow-glow: 0 0 30px -6px hsl(0 0% 0% / 0.15);
+    --shadow-elevated: 0 8px 32px -8px hsl(0 0% 0% / 0.12);
+
+    /* Sidebar */
+    --sidebar-background: 0 0% 96%;
+    --sidebar-foreground: 0 0% 16%;
+    --sidebar-primary: 0 0% 8%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 0 0% 90%;
+    --sidebar-accent-foreground: 0 0% 6%;
+    --sidebar-border: 0 0% 86%;
+    --sidebar-ring: 0 0% 8%;
+
+    --dot-color: hsl(0 0% 0% / 0.10);
+    --transition-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* ── Dark theme ──────────────────────────────────────────────────────────── */
+  .dark {
+    --background: 0 0% 4%;
+    --foreground: 0 0% 94%;
+
+    --card: 0 0% 7%;
+    --card-foreground: 0 0% 94%;
+
+    --popover: 0 0% 6%;
+    --popover-foreground: 0 0% 94%;
+
+    --primary: 0 0% 92%;
+    --primary-foreground: 0 0% 6%;
+    --primary-glow: 0 0% 100%;
+
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 0 0% 94%;
+
+    --muted: 0 0% 11%;
+    --muted-foreground: 0 0% 52%;
+
+    --accent: 0 0% 92%;
+    --accent-foreground: 0 0% 6%;
+
+    --destructive: 0 72% 60%;
+    --destructive-foreground: 0 0% 94%;
+
+    --success: 152 62% 48%;
+    --success-foreground: 0 0% 6%;
+
+    --warning: 38 88% 56%;
+    --warning-foreground: 0 0% 6%;
+
+    --info: 210 88% 62%;
+    --info-foreground: 0 0% 6%;
+
+    --border: 0 0% 14%;
+    --input: 0 0% 14%;
+    --ring: 0 0% 92%;
+
+    /* Platform brand hues */
     --reddit: 16 100% 55%;
     --twitter: 200 90% 60%;
     --instagram: 330 80% 60%;
@@ -57,27 +125,26 @@ All colors MUST be HSL.
     --onlyfans: 195 100% 50%;
 
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
-    --gradient-card: linear-gradient(160deg, hsl(230 18% 11%) 0%, hsl(230 20% 7%) 100%);
-    --gradient-glow: radial-gradient(800px circle at top right, hsl(var(--primary) / 0.15), transparent 50%);
-    --gradient-revenue: linear-gradient(135deg, hsl(152 65% 48%), hsl(170 70% 55%));
+    --gradient-primary: linear-gradient(135deg, hsl(0 0% 92%), hsl(0 0% 100%));
+    --gradient-card: linear-gradient(160deg, hsl(0 0% 8%) 0%, hsl(0 0% 5%) 100%);
+    --gradient-glow: none;
+    --gradient-revenue: linear-gradient(135deg, hsl(152 62% 48%), hsl(170 68% 54%));
 
     /* Shadows */
-    --shadow-card: 0 1px 0 0 hsl(0 0% 100% / 0.04) inset, 0 10px 30px -15px hsl(0 0% 0% / 0.6);
-    --shadow-glow: 0 0 40px -8px hsl(var(--primary) / 0.4);
-    --shadow-elevated: 0 20px 50px -20px hsl(0 0% 0% / 0.7);
+    --shadow-card: 0 1px 0 0 hsl(0 0% 100% / 0.04) inset, 0 10px 30px -15px hsl(0 0% 0% / 0.7);
+    --shadow-glow: 0 0 40px -8px hsl(0 0% 100% / 0.08);
+    --shadow-elevated: 0 20px 50px -20px hsl(0 0% 0% / 0.8);
 
     /* Sidebar */
-    --sidebar-background: 230 22% 5%;
-    --sidebar-foreground: 40 20% 88%;
-    --sidebar-primary: 38 92% 58%;
-    --sidebar-primary-foreground: 230 25% 8%;
-    --sidebar-accent: 230 16% 11%;
-    --sidebar-accent-foreground: 40 30% 96%;
-    --sidebar-border: 230 14% 12%;
-    --sidebar-ring: 38 92% 58%;
-
-    --transition-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+    --sidebar-background: 0 0% 3%;
+    --sidebar-foreground: 0 0% 82%;
+    --sidebar-primary: 0 0% 92%;
+    --sidebar-primary-foreground: 0 0% 6%;
+    --sidebar-accent: 0 0% 9%;
+    --sidebar-accent-foreground: 0 0% 94%;
+    --sidebar-border: 0 0% 10%;
+    --sidebar-ring: 0 0% 92%;
+    --dot-color: hsl(0 0% 100% / 0.07);
   }
 }
 
@@ -86,11 +153,15 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html {
+    transition: background-color 250ms ease, color 250ms ease;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
-    background-image: var(--gradient-glow);
-    background-attachment: fixed;
+    background-image: radial-gradient(circle, var(--dot-color) 1px, transparent 1px);
+    background-size: 22px 22px;
   }
 }
 
@@ -111,19 +182,38 @@ All colors MUST be HSL.
   .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
 }
 
-/* -------------------------------------------------------------------------- */
-/*  PDF export hook                                                           */
-/*                                                                            */
-/*  Triggered by `document.documentElement.classList.add("pdf-exporting")`    */
-/*  in lib/utils/pdf.ts during the html2canvas screenshot. We hide controls   */
-/*  (sidebar / dropdowns / range pills) so the captured image looks like a    */
-/*  clean dashboard, not a screenshot with UI chrome.                         */
-/*                                                                            */
-/*  The capture is WYSIWYG otherwise — the dark theme, gradients, and chart  */
-/*  colors all carry over to the PDF.                                         */
-/* -------------------------------------------------------------------------- */
-
-html.pdf-exporting .no-print {
-  display: none !important;
+/* ── Animated background blobs ──────────────────────────────────────────── */
+@keyframes blob-drift-1 {
+  0%, 100% { transform: translate(0px,   0px)  scale(1); }
+  25%       { transform: translate(60px, -40px) scale(1.06); }
+  50%       { transform: translate(20px,  50px) scale(0.96); }
+  75%       { transform: translate(-40px, 20px) scale(1.03); }
+}
+@keyframes blob-drift-2 {
+  0%, 100% { transform: translate(0px,   0px)  scale(1); }
+  30%       { transform: translate(-50px, 30px) scale(1.08); }
+  60%       { transform: translate(30px, -50px) scale(0.94); }
+  80%       { transform: translate(50px,  10px) scale(1.04); }
+}
+@keyframes blob-drift-3 {
+  0%, 100% { transform: translate(0px,   0px)  scale(1); }
+  20%       { transform: translate(40px,  60px) scale(0.97); }
+  55%       { transform: translate(-30px, -30px) scale(1.05); }
+  80%       { transform: translate(20px, -10px) scale(0.98); }
 }
 
+.bg-blob {
+  position: fixed;
+  border-radius: 9999px;
+  filter: blur(110px);
+  pointer-events: none;
+  will-change: transform;
+  z-index: 0;
+}
+.bg-blob-1 { animation: blob-drift-1 28s ease-in-out infinite; }
+.bg-blob-2 { animation: blob-drift-2 34s ease-in-out infinite; }
+.bg-blob-3 { animation: blob-drift-3 22s ease-in-out infinite; }
+
+/* ── PDF export ─────────────────────────────────────────────────────────── */
+html.pdf-exporting .no-print { display: none !important; }
+html.pdf-exporting .bg-blob  { display: none !important; }

@@ -157,7 +157,6 @@ export function PlatformSection({
             )}
           </span>
         }
-        subtitle={`${activeField?.label ?? "Headline metric"} \u00b7 last ${HISTORY_WEEKS} weeks`}
         action={
           readOnly ? null : (
             <Button
@@ -204,7 +203,6 @@ export function PlatformSection({
           <Stat
             label="Latest"
             value={latest?.cumulative != null ? formatNumber(latest.cumulative) : "\u2014"}
-            sub={latest ? weekShortLabel(latest.weekKey) : "no entries yet"}
           />
           <Stat
             label="This week"
@@ -213,7 +211,6 @@ export function PlatformSection({
               if (!last || last.delta === null) return "\u2014";
               return formatSignedInt(last.delta);
             })()}
-            sub="vs prior reading"
           />
           <Stat
             label="Avg weekly Δ"
@@ -222,13 +219,9 @@ export function PlatformSection({
                 ? "\u2014"
                 : formatSignedInt(Math.round(avgWeeklyDelta))
             }
-            sub={`across ${observedDeltaWeeks} week${observedDeltaWeeks === 1 ? "" : "s"}`}
           />
         </div>
 
-        <div className="text-[10px] text-muted-foreground mb-1">
-          Weeks logged: {weeksLogged} of {HISTORY_WEEKS}
-        </div>
 
         {entriesLoading ? (
           <Skeleton className="h-[240px] w-full" />
@@ -355,14 +348,13 @@ export function PlatformSection({
   );
 }
 
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md bg-secondary/30 px-3 py-2">
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
         {label}
       </div>
       <div className="text-lg font-semibold text-foreground tabular-nums">{value}</div>
-      {sub && <div className="text-[10px] text-muted-foreground mt-0.5">{sub}</div>}
     </div>
   );
 }

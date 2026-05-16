@@ -17,21 +17,22 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useCreateInfluencer } from "@/lib/influencers/influencers.hooks";
 import { PasswordField } from "@/components/shared/PasswordField";
-import { PLATFORM_KEYS } from "@/lib/platforms/registry";
+import { PLATFORM_KEYS, PLATFORMS, type PlatformKey } from "@/lib/platforms/registry";
+import type { InfluencerHandles } from "@/lib/influencers/types";
 
 interface Props {
   trigger?: React.ReactNode;
 }
 
 const PLATFORM_LABELS: Record<string, string> = {
-  reddit: "Reddit username",
-  instagram: "Instagram username",
-  x: "X username",
+  reddit: "Reddit",
+  instagram: "Instagram",
+  x: "X",
   onlyfans: "OnlyFans username",
 };
 
-function emptyHandles(): Record<string, string> {
-  return Object.fromEntries(PLATFORM_KEYS.map((k) => [k, ""]));
+function emptyHandles(): Record<string, string[]> {
+  return Object.fromEntries(PLATFORM_KEYS.map((k) => [k, [""]]));
 }
 
 export function AddInfluencerDialog({ trigger }: Props) {
@@ -40,7 +41,7 @@ export function AddInfluencerDialog({ trigger }: Props) {
 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [handles, setHandles] = useState<Record<string, string>>(emptyHandles);
+  const [handles, setHandles] = useState<Record<string, string[]>>(emptyHandles);
   const [inflowwCreatorId, setInflowwCreatorId] = useState("");
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -67,10 +68,10 @@ export function AddInfluencerDialog({ trigger }: Props) {
   };
 
   const submit = async () => {
-    const handlesPayload: Record<string, string> = {};
+    const handlesPayload: InfluencerHandles = {};
     for (const k of PLATFORM_KEYS) {
-      const v = handles[k]?.trim();
-      if (v) handlesPayload[k] = v;
+      const vals = (handles[k] ?? []).map((v) => v.trim()).filter(Boolean);
+      if (vals.length > 0) handlesPayload[k as PlatformKey] = vals;
     }
 
     let avatarUrl: string | undefined;
@@ -212,20 +213,64 @@ export function AddInfluencerDialog({ trigger }: Props) {
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide pt-1">
               Platform handles
             </p>
-            {PLATFORM_KEYS.map((key) => (
-              <div key={key} className="space-y-1.5">
-                <Label htmlFor={`inf-handle-${key}`}>{PLATFORM_LABELS[key]}</Label>
-                <Input
-                  id={`inf-handle-${key}`}
-                  value={handles[key] ?? ""}
-                  onChange={(e) =>
-                    setHandles((prev) => ({ ...prev, [key]: e.target.value }))
+            {PLATFORM_KEYS.filter((k) => k !== "onlyfans").map((key) => (
+              <div key={key} className="space-y-2">
+                <Label>{PLATFORM_LABELS[key]}</Label>
+                {(handles[key] ?? [""]).map((val, idx) => (
+                  <div key={idx} className="flex gap-2">
+                    <Input
+                      value={val}
+                      onChange={(e) => {
+                        const arr = [...(handles[key] ?? [])];
+                        arr[idx] = e.target.value;
+                        setHandles((prev) => ({ ...prev, [key]: arr }));
+                      }}
+                      placeholder={`e.g. ${key === "reddit" ? "u/" : "@"}username`}
+                      autoComplete="off"
+                    />
+                    {(handles[key] ?? []).length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setHandles((prev) => ({
+                            ...prev,
+                            [key]: prev[key].filter((_, i) => i !== idx),
+                          }));
+                        }}
+                      >
+                        <X className="size-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setHandles((prev) => ({
+                      ...prev,
+                      [key]: [...(prev[key] ?? []), ""],
+                    }))
                   }
-                  placeholder={`e.g. ${key === "reddit" ? "u/" : "@"}username`}
-                  autoComplete="off"
-                />
+                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 mt-1"
+                >
+                  <Plus className="size-3" /> Add another {PLATFORMS[key].label} handle
+                </button>
               </div>
             ))}
+            {/* OnlyFans — single handle */}
+            <div className="space-y-1.5">
+              <Label>OnlyFans username</Label>
+              <Input
+                value={(handles.onlyfans ?? [""])[0]}
+                onChange={(e) =>
+                  setHandles((prev) => ({ ...prev, onlyfans: [e.target.value] }))
+                }
+                placeholder="@username"
+                autoComplete="off"
+              />
+            </div>
           </div>
 
           <div className="space-y-1.5 pt-1 border-t border-border">

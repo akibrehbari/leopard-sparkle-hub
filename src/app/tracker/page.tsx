@@ -105,7 +105,7 @@ export default function TrackerPage() {
     const q = search.trim().toLowerCase();
     if (!q) return influencers;
     return influencers.filter((i) =>
-      [i.name, ...PLATFORM_KEYS.map((k) => i.handles[k])]
+      [i.name, ...PLATFORM_KEYS.flatMap((k) => i.handles[k] ?? [])]
         .filter(Boolean)
         .some((s) => s!.toLowerCase().includes(q)),
     );
@@ -321,6 +321,7 @@ export default function TrackerPage() {
           influencerName={openForm.influencer.name}
           platform={openForm.platform}
           weekKey={openForm.weekKey}
+          influencerHandles={openForm.influencer.handles}
         />
       )}
 

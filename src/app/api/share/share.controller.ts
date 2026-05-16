@@ -223,8 +223,11 @@ class ShareController {
   private toInfluencerJson(doc: InfluencerDoc): Influencer {
     const handles: InfluencerHandles = {};
     for (const key of PLATFORM_KEYS) {
-      const v = doc.handles?.[key];
-      if (v) handles[key] = v;
+      const raw = doc.handles?.[key];
+      if (!raw) continue;
+      const arr = Array.isArray(raw) ? raw : [raw as string];
+      const filtered = arr.filter(Boolean) as string[];
+      if (filtered.length > 0) handles[key] = filtered;
     }
     return {
       _id: doc._id.toString(),

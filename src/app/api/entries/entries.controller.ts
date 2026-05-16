@@ -20,6 +20,7 @@ import mongoose from "mongoose";
 import { connectMongo } from "@/lib/db/mongo";
 import { WeeklyEntryModel, type WeeklyEntryDoc } from "./entries.model";
 import { InfluencerModel } from "@/app/api/influencers/influencers.model";
+import { WorkerModel } from "@/app/api/workers/workers.model";
 import {
   isValidPlatform,
   validateEntryData,
@@ -100,7 +101,7 @@ class EntriesController {
   async handleList(
     request: NextRequest,
     agencyId: string,
-    opts: { pinnedInfluencerId?: string; stripSpend?: boolean } = {},
+    opts: { pinnedInfluencerId?: string; stripSpend?: boolean; workerId?: string } = {},
   ): Promise<NextResponse> {
     try {
       const sp = new URL(request.url).searchParams;
@@ -114,6 +115,28 @@ class EntriesController {
           return NextResponse.json({ error: "Invalid pinnedInfluencerId" }, { status: 400 });
         }
         filter.influencerId = new mongoose.Types.ObjectId(opts.pinnedInfluencerId);
+      } else if (opts.workerId) {
+        // Worker sessions: scope to their assigned influencers.
+        if (!mongoose.isValidObjectId(opts.workerId)) {
+          return NextResponse.json({ error: "Invalid workerId" }, { status: 400 });
+        }
+        const worker = await WorkerModel.findById(opts.workerId, { assignedInfluencerIds: 1 }).lean();
+        const assignedIds = worker?.assignedInfluencerIds ?? [];
+        filter.influencerId = { $in: assignedIds };
+        // If a specific influencer was requested, only serve it if it's assigned.
+        const requestedInfluencerId = sp.get("influencerId");
+        if (requestedInfluencerId) {
+          if (!mongoose.isValidObjectId(requestedInfluencerId)) {
+            return NextResponse.json({ error: "Invalid influencerId" }, { status: 400 });
+          }
+          const isAssigned = assignedIds.some(
+            (id) => id.toString() === requestedInfluencerId,
+          );
+          if (!isAssigned) {
+            return NextResponse.json({ data: [] });
+          }
+          filter.influencerId = new mongoose.Types.ObjectId(requestedInfluencerId);
+        }
       } else {
         const influencerId = sp.get("influencerId");
         if (influencerId) {

@@ -11,7 +11,7 @@ import type { PlatformKey } from "@/lib/platforms/registry";
  * platform; the dashboard still shows the platform's section so weekly data
  * can be entered.
  */
-export type InfluencerHandles = Partial<Record<PlatformKey, string>>;
+export type InfluencerHandles = Partial<Record<PlatformKey, string[]>>;
 
 export interface Influencer {
   _id: string;

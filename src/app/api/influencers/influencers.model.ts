@@ -19,9 +19,9 @@ export interface InfluencerDoc {
   agencyId: mongoose.Types.ObjectId;
   name: string;
   handles: {
-    reddit?: string | null;
-    instagram?: string | null;
-    x?: string | null;
+    reddit?: string[] | null;
+    instagram?: string[] | null;
+    x?: string[] | null;
     onlyfans?: string | null;
   };
   /** Portal login username. Unique, lowercase, sparse (not all influencers need login). */
@@ -53,9 +53,9 @@ const InfluencerSchema = new Schema<InfluencerDoc>(
     },
     name: { type: String, required: true, trim: true },
     handles: {
-      reddit: { type: String, default: null, trim: true },
-      instagram: { type: String, default: null, trim: true },
-      x: { type: String, default: null, trim: true },
+      reddit: { type: [String], default: [] },
+      instagram: { type: [String], default: [] },
+      x: { type: [String], default: [] },
       onlyfans: { type: String, default: null, trim: true },
     },
     loginUsername: {

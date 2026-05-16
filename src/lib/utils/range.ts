@@ -6,7 +6,7 @@
  * helpers are about display rather than query slicing.
  */
 
-export type DashboardRange = "2w" | "4w" | "8w";
+export type DashboardRange = "1w" | "2w" | "4w" | "8w";
 
 export const DASHBOARD_RANGES: readonly DashboardRange[] = [
   "2w",
@@ -14,13 +14,22 @@ export const DASHBOARD_RANGES: readonly DashboardRange[] = [
   "8w",
 ];
 
+/** Range options shown on individual influencer pages (no aggregate). */
+export const INDIVIDUAL_RANGES: readonly DashboardRange[] = [
+  "1w",
+  "4w",
+  "8w",
+];
+
 export const RANGE_LABELS: Record<DashboardRange, string> = {
+  "1w": "Last 1 week",
   "2w": "Last 2 weeks",
   "4w": "Last 4 weeks",
   "8w": "Last 8 weeks",
 };
 
 export const RANGE_DAYS: Record<DashboardRange, number> = {
+  "1w": 7,
   "2w": 14,
   "4w": 28,
   "8w": 56,

@@ -140,7 +140,7 @@ export function SubredditTable({
 
   return (
     <>
-      <div className="card-surface rounded-xl overflow-hidden">
+      <div className="card-surface rounded-xl overflow-hidden overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
