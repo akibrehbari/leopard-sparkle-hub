@@ -24,6 +24,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
+  ChevronDown,
   DollarSign,
   Layers,
   MessagesSquare,
@@ -52,9 +53,11 @@ import { useSession } from "@/lib/auth/auth.hooks";
 import { isEditorOrAdmin } from "@/lib/auth/roles";
 import {
   ACQUISITION_PLATFORM_KEYS,
+  PLATFORM_KEYS,
   PLATFORMS,
   type AcquisitionPlatformKey,
 } from "@/lib/platforms/registry";
+import type { Influencer } from "@/lib/influencers/types";
 import {
   RANGE_LABELS,
   type DashboardRange,
@@ -222,7 +225,7 @@ function DashboardContent() {
       </div>
 
       {isAggregate ? (
-        <AggregateOverview range={range} influencerIds={influencers.map((i) => i._id)} />
+        <AggregateOverview range={range} influencers={influencers} />
       ) : selectedInfluencer ? (
         <>
           <section className="mb-8">
@@ -294,16 +297,17 @@ const RANGE_TO_WEEKS: Record<DashboardRange, number> = {
 
 function AggregateOverview({
   range,
-  influencerIds,
+  influencers,
 }: {
   range: DashboardRange;
-  influencerIds: string[];
+  influencers: Influencer[];
 }) {
   const weekKeys = useMemo(() => lastNWeeks(RANGE_TO_WEEKS[range]), [range]);
+  const [rosterOpen, setRosterOpen] = useState(false);
+  const [subredditsOpen, setSubredditsOpen] = useState(false);
 
-  /* We hit the entries endpoint once with no influencer filter to get the
-   * full slice for the window, then bucket per-influencer client-side.
-   * That's one round trip regardless of how many influencers exist. */
+  const influencerIds = useMemo(() => influencers.map((i) => i._id), [influencers]);
+
   const entriesQ = useEntries({ weekKeys });
 
   const aggregate: CrossPlatformAggregate = useMemo(() => {
@@ -416,16 +420,109 @@ function AggregateOverview({
         </div>
       </section>
 
+      {/* Models Roster — collapsible */}
+      <section className="mb-4">
+        <button
+          onClick={() => setRosterOpen((o) => !o)}
+          className="w-full flex items-center justify-between px-4 py-3 card-surface rounded-xl text-sm font-semibold text-foreground hover:bg-secondary/60 transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Users className="size-4 text-muted-foreground" />
+            Models Roster
+            <span className="text-xs font-normal text-muted-foreground">
+              {influencers.length} influencer{influencers.length === 1 ? "" : "s"}
+            </span>
+          </span>
+          <ChevronDown className={`size-4 text-muted-foreground transition-transform duration-200 ${rosterOpen ? "rotate-180" : ""}`} />
+        </button>
+        {rosterOpen && (
+          <div className="mt-2 card-surface rounded-xl overflow-hidden">
+            {influencers.length === 0 ? (
+              <div className="p-6 text-sm text-muted-foreground text-center">No influencers yet.</div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left px-4 py-2.5 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Model</th>
+                    <th className="text-left px-4 py-2.5 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Handles</th>
+                    <th className="text-left px-4 py-2.5 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Platforms</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {influencers.map((inf, i) => {
+                    const display = inf.name || "Untitled";
+                    return (
+                      <tr
+                        key={inf._id}
+                        className={`hover:bg-secondary/30 transition-colors cursor-pointer ${i !== influencers.length - 1 ? "border-b border-border/50" : ""}`}
+                        onClick={() => window.location.href = `/?id=${inf._id}`}
+                      >
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="size-7 rounded-full shrink-0 overflow-hidden bg-gradient-primary grid place-items-center ring-1 ring-border">
+                              {inf.avatarUrl ? (
+                                <img src={inf.avatarUrl} alt={display} className="size-full object-cover" />
+                              ) : (
+                                <span className="text-primary-foreground text-[10px] font-semibold">{(display[0] ?? "?").toUpperCase()}</span>
+                              )}
+                            </div>
+                            <span className="font-medium text-foreground">{display}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-muted-foreground">
+                          {PLATFORM_KEYS.flatMap((k) =>
+                            (inf.handles[k] ?? []).map((h) => (
+                              <span key={`${k}-${h}`} className="inline-flex items-center gap-1 mr-2">
+                                <span className="size-1.5 rounded-full" style={{ background: PLATFORMS[k].color }} />
+                                {k === "reddit" ? `u/${h}` : `@${h}`}
+                              </span>
+                            ))
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-1">
+                            {PLATFORM_KEYS.map((k) => {
+                              const count = inf.handles[k]?.length ?? 0;
+                              if (!count) return null;
+                              return (
+                                <span
+                                  key={k}
+                                  className="text-[9px] font-bold px-1 py-0.5 rounded border border-border leading-none"
+                                  style={{ background: `${PLATFORMS[k].color}20`, color: PLATFORMS[k].color }}
+                                >
+                                  {PLATFORMS[k].short}{count > 1 ? ` ${count}` : ""}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* Subreddits — collapsible */}
       <section className="mb-8">
-        <h3 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider flex items-center gap-1.5">
-          <MessagesSquare className="size-3" />
-          Subreddits across roster
-        </h3>
-        <RosterSubredditsSection />
-        <p className="mt-3 text-xs text-muted-foreground text-center">
-          Pick an influencer from the sidebar to see their per-platform
-          breakdown, charts, and weekly entry forms.
-        </p>
+        <button
+          onClick={() => setSubredditsOpen((o) => !o)}
+          className="w-full flex items-center justify-between px-4 py-3 card-surface rounded-xl text-sm font-semibold text-foreground hover:bg-secondary/60 transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <MessagesSquare className="size-4 text-muted-foreground" />
+            Subreddits across roster
+          </span>
+          <ChevronDown className={`size-4 text-muted-foreground transition-transform duration-200 ${subredditsOpen ? "rotate-180" : ""}`} />
+        </button>
+        {subredditsOpen && (
+          <div className="mt-2">
+            <RosterSubredditsSection />
+          </div>
+        )}
       </section>
     </>
   );
