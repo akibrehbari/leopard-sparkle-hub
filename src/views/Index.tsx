@@ -231,6 +231,7 @@ function DashboardContent() {
             <OnlyFansAttributionSection
               influencer={selectedInfluencer}
               readOnly={readOnly}
+              range={range}
             />
           </section>
 

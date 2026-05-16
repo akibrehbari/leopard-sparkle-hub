@@ -49,8 +49,16 @@ import { onlyFansSummary } from "@/lib/utils/derive";
 import { useEntries } from "@/lib/entries/entries.hooks";
 import { formatUSD } from "@/lib/utils/format";
 import { currentWeekKey, lastNWeeks, weekShortLabel } from "@/lib/utils/week";
+import type { DashboardRange } from "@/lib/utils/range";
 
 const HISTORY_WEEKS = 12;
+
+const RANGE_TO_WEEKS: Record<DashboardRange, number> = {
+  "1w": 1,
+  "2w": 2,
+  "4w": 4,
+  "8w": 8,
+};
 
 interface Props {
   influencer: Influencer;
@@ -58,6 +66,8 @@ interface Props {
   prefetchedEntries?: WeeklyEntry[];
   /** Read-only mode hides the "Log this week" button + per-week click hooks. */
   readOnly?: boolean;
+  /** Selected dashboard range — KPI tiles and source cards reflect this window. */
+  range?: DashboardRange;
 }
 
 const SOURCE_COLOR: Record<AcquisitionPlatformKey, string> = {
@@ -76,9 +86,14 @@ export function OnlyFansAttributionSection({
   influencer,
   prefetchedEntries,
   readOnly,
+  range,
 }: Props) {
   const usePrefetched = prefetchedEntries !== undefined;
   const weekKeys = useMemo(() => lastNWeeks(HISTORY_WEEKS), []);
+  const kpiWeekKeys = useMemo(
+    () => lastNWeeks(range ? RANGE_TO_WEEKS[range] : HISTORY_WEEKS),
+    [range],
+  );
 
   /** Only show acquisition sources where the influencer has a handle set. */
   const activeSources = useMemo(
@@ -102,6 +117,11 @@ export function OnlyFansAttributionSection({
   const summary: OnlyFansSummary = useMemo(
     () => onlyFansSummary(entries, weekKeys),
     [entries, weekKeys],
+  );
+
+  const kpiSummary: OnlyFansSummary = useMemo(
+    () => onlyFansSummary(entries, kpiWeekKeys),
+    [entries, kpiWeekKeys],
   );
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -162,25 +182,25 @@ export function OnlyFansAttributionSection({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <KpiCard
           label="Total revenue"
-          value={formatUSD(summary.totals.revenue)}
+          value={formatUSD(kpiSummary.totals.revenue)}
           icon={DollarSign}
           accent="success"
         />
         <KpiCard
           label="Total spend"
-          value={formatUSD(summary.totals.spend, { fractional: true })}
+          value={formatUSD(kpiSummary.totals.spend, { fractional: true })}
           icon={Wallet}
           accent="info"
         />
         <KpiCard
           label="Revenue / claim"
-          value={summary.totals.revenuePerClaim === null ? "—" : formatUSD(summary.totals.revenuePerClaim, { fractional: true })}
+          value={kpiSummary.totals.revenuePerClaim === null ? "—" : formatUSD(kpiSummary.totals.revenuePerClaim, { fractional: true })}
           icon={TrendingUp}
           accent="success"
         />
         <KpiCard
           label="Cost / claim"
-          value={summary.totals.costPerClaim === null ? "—" : formatUSD(summary.totals.costPerClaim, { fractional: true })}
+          value={kpiSummary.totals.costPerClaim === null ? "—" : formatUSD(kpiSummary.totals.costPerClaim, { fractional: true })}
           icon={TrendingDown}
           accent="info"
         />
@@ -211,7 +231,7 @@ export function OnlyFansAttributionSection({
       {/* Per-source mini cards — only for active sources */}
       {activeSources.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {summary.bySource
+          {kpiSummary.bySource
             .filter((src) => activeSources.includes(src.source))
             .map((src) => (
               <SourceCard key={src.source} source={src} />
