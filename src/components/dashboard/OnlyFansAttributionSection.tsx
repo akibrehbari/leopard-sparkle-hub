@@ -147,6 +147,9 @@ export function OnlyFansAttributionSection({
         reddit_spd: w.spend.reddit,
         instagram_spd: w.spend.instagram,
         x_spd: w.spend.x,
+        reddit_sub: w.subs.reddit,
+        instagram_sub: w.subs.instagram,
+        x_sub: w.subs.x,
         total_rev: w.totalRevenue,
         total_spd: w.totalSpend,
         net: w.net,
@@ -208,8 +211,8 @@ export function OnlyFansAttributionSection({
 
       {/* Stacked charts — only shown when there are active sources */}
       {activeSources.length > 0 && (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
-          <ChartCard title="Revenue by source">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-6">
+          <ChartCard title="Revenue">
             <SourceStackedChart
               data={chartData}
               metric="rev"
@@ -217,10 +220,18 @@ export function OnlyFansAttributionSection({
               activeSources={activeSources}
             />
           </ChartCard>
-          <ChartCard title="Spend by source">
+          <ChartCard title="Cost">
             <SourceStackedChart
               data={chartData}
               metric="spd"
+              loading={isLoading}
+              activeSources={activeSources}
+            />
+          </ChartCard>
+          <ChartCard title="New Subscribers">
+            <SourceStackedChart
+              data={chartData}
+              metric="sub"
               loading={isLoading}
               activeSources={activeSources}
             />
@@ -260,10 +271,16 @@ export function OnlyFansAttributionSection({
 
 interface SourceStackedChartProps {
   data: Array<Record<string, string | number>>;
-  metric: "rev" | "spd";
+  metric: "rev" | "spd" | "sub";
   loading?: boolean;
   activeSources: AcquisitionPlatformKey[];
 }
+
+const METRIC_EMPTY_LABEL: Record<"rev" | "spd" | "sub", string> = {
+  rev: "revenue",
+  spd: "spend",
+  sub: "subscriber data",
+};
 
 function SourceStackedChart({ data, metric, loading, activeSources }: SourceStackedChartProps) {
   if (loading) {
@@ -275,10 +292,12 @@ function SourceStackedChart({ data, metric, loading, activeSources }: SourceStac
   if (allZero) {
     return (
       <div className="h-[240px] grid place-items-center text-xs text-muted-foreground border border-dashed border-border rounded-md">
-        No {metric === "rev" ? "revenue" : "spend"} entered yet for this window.
+        No {METRIC_EMPTY_LABEL[metric]} entered yet for this window.
       </div>
     );
   }
+
+  const isCurrency = metric !== "sub";
 
   return (
     <div className="h-[240px]">
@@ -291,7 +310,11 @@ function SourceStackedChart({ data, metric, loading, activeSources }: SourceStac
             stroke="currentColor"
             opacity={0.4}
             width={48}
-            tickFormatter={(v) => `$${Number(v).toLocaleString("en-US")}`}
+            tickFormatter={(v) =>
+              isCurrency
+                ? `$${Number(v).toLocaleString("en-US")}`
+                : Number(v).toLocaleString("en-US")
+            }
           />
           <Tooltip
             contentStyle={{
@@ -301,7 +324,9 @@ function SourceStackedChart({ data, metric, loading, activeSources }: SourceStac
               fontSize: 11,
             }}
             formatter={(v: number, name) => [
-              formatUSD(Number(v), { fractional: metric === "spd" }),
+              isCurrency
+                ? formatUSD(Number(v), { fractional: metric === "spd" })
+                : Number(v).toLocaleString("en-US"),
               tooltipLabelFor(name as string),
             ]}
             labelFormatter={(label) => `Week ${label}`}
@@ -317,25 +342,13 @@ function SourceStackedChart({ data, metric, loading, activeSources }: SourceStac
           ))}
         </BarChart>
       </ResponsiveContainer>
-      {/* Legend */}
-      <div className="flex items-center gap-3 mt-2 flex-wrap text-[11px] text-muted-foreground">
-        {activeSources.map((src) => (
-          <div key={src} className="inline-flex items-center gap-1.5">
-            <span
-              className="size-2 rounded-sm"
-              style={{ background: SOURCE_COLOR[src] }}
-            />
-            {SOURCE_LABEL[src]}
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
 
 function tooltipLabelFor(dataKey: string): string {
   const [src, metric] = dataKey.split("_") as [AcquisitionPlatformKey, string];
-  const m = metric === "rev" ? "Revenue" : "Spend";
+  const m = metric === "rev" ? "Revenue" : metric === "spd" ? "Spend" : "New Subs";
   return `${SOURCE_LABEL[src]} · ${m}`;
 }
 

@@ -126,12 +126,16 @@ export interface OnlyFansWeekPoint {
   spend: Record<AcquisitionPlatformKey, number>;
   /** Per-source claims count. Always present (0 when missing). */
   claims: Record<AcquisitionPlatformKey, number>;
+  /** Per-source new subscribers count. Always present (0 when missing). */
+  subs: Record<AcquisitionPlatformKey, number>;
   /** Sum of per-source revenue. */
   totalRevenue: number;
   /** Sum of per-source spend. */
   totalSpend: number;
   /** Sum of per-source claims. */
   totalClaims: number;
+  /** Sum of per-source new subscribers. */
+  totalSubs: number;
   net: number;
   /** revenue / spend; null when spend is 0. */
   roas: number | null;
@@ -205,21 +209,10 @@ export function onlyFansSummary(
     const entry = byWeek.get(wk);
     const data = entry?.data ?? {};
 
-    const revenue: Record<AcquisitionPlatformKey, number> = {
-      reddit: 0,
-      instagram: 0,
-      x: 0,
-    };
-    const spend: Record<AcquisitionPlatformKey, number> = {
-      reddit: 0,
-      instagram: 0,
-      x: 0,
-    };
-    const claims: Record<AcquisitionPlatformKey, number> = {
-      reddit: 0,
-      instagram: 0,
-      x: 0,
-    };
+    const revenue: Record<AcquisitionPlatformKey, number> = { reddit: 0, instagram: 0, x: 0 };
+    const spend: Record<AcquisitionPlatformKey, number> = { reddit: 0, instagram: 0, x: 0 };
+    const claims: Record<AcquisitionPlatformKey, number> = { reddit: 0, instagram: 0, x: 0 };
+    const subs: Record<AcquisitionPlatformKey, number> = { reddit: 0, instagram: 0, x: 0 };
 
     for (const src of ACQUISITION_PLATFORM_KEYS) {
       const r = data[onlyFansFieldKey("revenue", src)];
@@ -229,20 +222,18 @@ export function onlyFansSummary(
       revenue[src] = typeof r === "number" ? centsToUsd(r) : 0;
       spend[src] = typeof s === "number" ? centsToUsd(s) : 0;
       claims[src] = typeof c === "number" ? c : 0;
+      subs[src] = typeof sb === "number" ? sb : 0;
       sourceTotals[src].revenue += revenue[src];
       sourceTotals[src].spend += spend[src];
       sourceTotals[src].claims += claims[src];
-      sourceTotals[src].subs += typeof sb === "number" ? sb : 0;
-      sourceWeekly[src].push({
-        weekKey: wk,
-        revenue: revenue[src],
-        spend: spend[src],
-      });
+      sourceTotals[src].subs += subs[src];
+      sourceWeekly[src].push({ weekKey: wk, revenue: revenue[src], spend: spend[src] });
     }
 
     const totalRevenue = revenue.reddit + revenue.instagram + revenue.x;
     const totalSpend = spend.reddit + spend.instagram + spend.x;
     const totalClaims = claims.reddit + claims.instagram + claims.x;
+    const totalSubs = subs.reddit + subs.instagram + subs.x;
     const net = totalRevenue - totalSpend;
     const roas = totalSpend > 0 ? totalRevenue / totalSpend : null;
     const roi = totalSpend > 0 ? ((totalRevenue - totalSpend) / totalSpend) * 100 : null;
@@ -252,9 +243,11 @@ export function onlyFansSummary(
       revenue,
       spend,
       claims,
+      subs,
       totalRevenue,
       totalSpend,
       totalClaims,
+      totalSubs,
       net,
       roas,
       roi,
