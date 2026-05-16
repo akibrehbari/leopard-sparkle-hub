@@ -28,7 +28,6 @@ import {
   Layers,
   MessagesSquare,
   Receipt,
-  Target,
   TrendingUp,
   Users,
   Wallet,
@@ -378,36 +377,24 @@ function AggregateOverview({
             value={formatUSD(aggregate.totalRevenue)}
             icon={DollarSign}
             accent="success"
-            hint={`${aggregate.influencerCount} influencer${aggregate.influencerCount === 1 ? "" : "s"}`}
           />
           <KpiCard
             label="Total spend"
             value={formatUSD(aggregate.totalSpend, { fractional: true })}
             icon={Wallet}
             accent="info"
-            hint="All sources"
           />
           <KpiCard
             label="Net"
             value={formatUSD(aggregate.net)}
             icon={Receipt}
             accent={aggregate.net >= 0 ? "success" : "instagram"}
-            hint={aggregate.net >= 0 ? "Profit" : "Loss"}
           />
           <KpiCard
-            label="ROAS"
-            value={
-              aggregate.roas === null
-                ? "—"
-                : `${aggregate.roas.toFixed(2)}\u00d7`
-            }
-            icon={Target}
+            label="Total subs"
+            value={aggregate.totalSubs.toLocaleString("en-US")}
+            icon={Users}
             accent="primary"
-            hint={
-              aggregate.roas === null
-                ? "No spend in window"
-                : "Revenue per $ spent"
-            }
           />
         </div>
       </section>

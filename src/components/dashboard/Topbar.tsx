@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { DASHBOARD_RANGES, INDIVIDUAL_RANGES, type DashboardRange } from "@/lib/utils/range";
+import { DASHBOARD_RANGES, type DashboardRange } from "@/lib/utils/range";
 import { Download, FileDown, Link2, Loader2 } from "lucide-react";
 import { AgencyTopbarLinks } from "./AgencyTopbarLinks";
 import { QuickAddButtons } from "./QuickAddButtons";
@@ -49,7 +49,6 @@ export function Topbar({
   isIndividual,
 }: Props) {
   const hasExportActions = Boolean(onExportPdf || onShare);
-  const ranges = isIndividual ? INDIVIDUAL_RANGES : DASHBOARD_RANGES;
 
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
@@ -73,7 +72,7 @@ export function Topbar({
           </a>
         )}
         <div className="flex items-center rounded-lg bg-secondary/50 border border-border p-1">
-          {ranges.map((r) => (
+          {DASHBOARD_RANGES.map((r) => (
             <button
               key={r}
               onClick={() => onRangeChange(r)}

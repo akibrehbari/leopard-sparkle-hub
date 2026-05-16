@@ -377,6 +377,8 @@ export interface CrossPlatformAggregate {
   totalRevenue: number;
   /** Total OnlyFans spend across all influencers + all weeks (USD). */
   totalSpend: number;
+  /** Total new subscribers gained across all influencers in the window. */
+  totalSubs: number;
   net: number;
   roas: number | null;
   /** (revenue - spend) / spend * 100; null when spend is 0. */
@@ -401,6 +403,7 @@ export function crossPlatformAggregate(
 ): CrossPlatformAggregate {
   let totalRevenue = 0;
   let totalSpend = 0;
+  let totalSubs = 0;
   const totalFollowers: Record<AcquisitionPlatformKey, number> = {
     reddit: 0,
     instagram: 0,
@@ -417,6 +420,7 @@ export function crossPlatformAggregate(
     const summary = onlyFansSummary(ofEntries, weekKeys);
     totalRevenue += summary.totals.revenue;
     totalSpend += summary.totals.spend;
+    totalSubs += summary.totals.subs;
 
     for (const src of ACQUISITION_PLATFORM_KEYS) {
       const platformEntries = ie.entries.filter((e) => e.platform === src);
@@ -434,6 +438,7 @@ export function crossPlatformAggregate(
     influencerCount: perInfluencer.length,
     totalRevenue,
     totalSpend,
+    totalSubs,
     net: totalRevenue - totalSpend,
     roas: totalSpend > 0 ? totalRevenue / totalSpend : null,
     roi: totalSpend > 0 ? ((totalRevenue - totalSpend) / totalSpend) * 100 : null,

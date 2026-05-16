@@ -9,13 +9,6 @@
 export type DashboardRange = "1w" | "2w" | "4w" | "8w";
 
 export const DASHBOARD_RANGES: readonly DashboardRange[] = [
-  "2w",
-  "4w",
-  "8w",
-];
-
-/** Range options shown on individual influencer pages (no aggregate). */
-export const INDIVIDUAL_RANGES: readonly DashboardRange[] = [
   "1w",
   "4w",
   "8w",
