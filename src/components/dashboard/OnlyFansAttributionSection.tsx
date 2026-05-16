@@ -323,13 +323,13 @@ function SourceStackedChart({ data, metric, loading, activeSources }: SourceStac
               borderRadius: 6,
               fontSize: 11,
             }}
-            formatter={(v: number, name) => [
+            formatter={(v: number) => [
               isCurrency
                 ? formatUSD(Number(v), { fractional: metric === "spd" })
                 : Number(v).toLocaleString("en-US"),
-              tooltipLabelFor(name as string),
+              "",
             ]}
-            labelFormatter={(label) => `Week ${label}`}
+            labelFormatter={() => ""}
           />
           {activeSources.map((src) => (
             <Bar
