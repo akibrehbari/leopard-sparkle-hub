@@ -144,14 +144,15 @@ export interface OnlyFansSourceSummary {
   revenue: number;
   spend: number;
   claims: number;
+  subs: number;
   net: number;
   roas: number | null;
   /** (revenue - spend) / spend * 100; null when spend is 0. */
   roi: number | null;
-  /** revenue / claims; null when claims is 0. */
-  revenuePerClaim: number | null;
-  /** spend / claims; null when claims is 0. */
-  costPerClaim: number | null;
+  /** revenue / subs; null when subs is 0. */
+  revenuePerSub: number | null;
+  /** spend / subs; null when subs is 0. */
+  costPerSub: number | null;
   /** Per-week revenue series (USD) for sparkline rendering. */
   weekly: { weekKey: string; revenue: number; spend: number }[];
 }
@@ -163,14 +164,15 @@ export interface OnlyFansSummary {
     revenue: number;
     spend: number;
     claims: number;
+    subs: number;
     net: number;
     roas: number | null;
     /** (revenue - spend) / spend * 100; null when spend is 0. */
     roi: number | null;
-    /** revenue / claims; null when claims is 0. */
-    revenuePerClaim: number | null;
-    /** spend / claims; null when claims is 0. */
-    costPerClaim: number | null;
+    /** revenue / subs; null when subs is 0. */
+    revenuePerSub: number | null;
+    /** spend / subs; null when subs is 0. */
+    costPerSub: number | null;
   };
   /** One summary per acquisition platform. */
   bySource: OnlyFansSourceSummary[];
@@ -187,10 +189,10 @@ export function onlyFansSummary(
   const byWeek = indexEntriesByWeek(entries);
   const ordered = sortedWeekKeys(weekKeys);
 
-  const sourceTotals: Record<AcquisitionPlatformKey, { revenue: number; spend: number; claims: number }> = {
-    reddit: { revenue: 0, spend: 0, claims: 0 },
-    instagram: { revenue: 0, spend: 0, claims: 0 },
-    x: { revenue: 0, spend: 0, claims: 0 },
+  const sourceTotals: Record<AcquisitionPlatformKey, { revenue: number; spend: number; claims: number; subs: number }> = {
+    reddit: { revenue: 0, spend: 0, claims: 0, subs: 0 },
+    instagram: { revenue: 0, spend: 0, claims: 0, subs: 0 },
+    x: { revenue: 0, spend: 0, claims: 0, subs: 0 },
   };
 
   const sourceWeekly: Record<AcquisitionPlatformKey, { weekKey: string; revenue: number; spend: number }[]> = {
@@ -223,12 +225,14 @@ export function onlyFansSummary(
       const r = data[onlyFansFieldKey("revenue", src)];
       const s = data[onlyFansFieldKey("spend", src)];
       const c = data[onlyFansFieldKey("claims", src)];
+      const sb = data[onlyFansFieldKey("subs", src)];
       revenue[src] = typeof r === "number" ? centsToUsd(r) : 0;
       spend[src] = typeof s === "number" ? centsToUsd(s) : 0;
       claims[src] = typeof c === "number" ? c : 0;
       sourceTotals[src].revenue += revenue[src];
       sourceTotals[src].spend += spend[src];
       sourceTotals[src].claims += claims[src];
+      sourceTotals[src].subs += typeof sb === "number" ? sb : 0;
       sourceWeekly[src].push({
         weekKey: wk,
         revenue: revenue[src],
@@ -269,6 +273,10 @@ export function onlyFansSummary(
     sourceTotals.reddit.claims +
     sourceTotals.instagram.claims +
     sourceTotals.x.claims;
+  const totalSubs =
+    sourceTotals.reddit.subs +
+    sourceTotals.instagram.subs +
+    sourceTotals.x.subs;
 
   return {
     weeks,
@@ -276,26 +284,29 @@ export function onlyFansSummary(
       revenue: totalRevenue,
       spend: totalSpend,
       claims: totalClaims,
+      subs: totalSubs,
       net: totalRevenue - totalSpend,
       roas: totalSpend > 0 ? totalRevenue / totalSpend : null,
       roi: totalSpend > 0 ? ((totalRevenue - totalSpend) / totalSpend) * 100 : null,
-      revenuePerClaim: totalClaims > 0 ? totalRevenue / totalClaims : null,
-      costPerClaim: totalClaims > 0 ? totalSpend / totalClaims : null,
+      revenuePerSub: totalSubs > 0 ? totalRevenue / totalSubs : null,
+      costPerSub: totalSubs > 0 ? totalSpend / totalSubs : null,
     },
     bySource: ACQUISITION_PLATFORM_KEYS.map((src) => {
       const r = sourceTotals[src].revenue;
       const s = sourceTotals[src].spend;
       const c = sourceTotals[src].claims;
+      const sb = sourceTotals[src].subs;
       return {
         source: src,
         revenue: r,
         spend: s,
         claims: c,
+        subs: sb,
         net: r - s,
         roas: s > 0 ? r / s : null,
         roi: s > 0 ? ((r - s) / s) * 100 : null,
-        revenuePerClaim: c > 0 ? r / c : null,
-        costPerClaim: c > 0 ? s / c : null,
+        revenuePerSub: sb > 0 ? r / sb : null,
+        costPerSub: sb > 0 ? s / sb : null,
         weekly: sourceWeekly[src],
       };
     }),

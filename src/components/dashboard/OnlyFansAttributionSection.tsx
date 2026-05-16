@@ -193,14 +193,14 @@ export function OnlyFansAttributionSection({
           accent="info"
         />
         <KpiCard
-          label="Revenue / claim"
-          value={kpiSummary.totals.revenuePerClaim === null ? "—" : formatUSD(kpiSummary.totals.revenuePerClaim, { fractional: true })}
+          label="Revenue / sub"
+          value={kpiSummary.totals.revenuePerSub === null ? "—" : formatUSD(kpiSummary.totals.revenuePerSub, { fractional: true })}
           icon={TrendingUp}
           accent="success"
         />
         <KpiCard
-          label="Cost / claim"
-          value={kpiSummary.totals.costPerClaim === null ? "—" : formatUSD(kpiSummary.totals.costPerClaim, { fractional: true })}
+          label="Cost / sub"
+          value={kpiSummary.totals.costPerSub === null ? "—" : formatUSD(kpiSummary.totals.costPerSub, { fractional: true })}
           icon={TrendingDown}
           accent="info"
         />
@@ -359,14 +359,14 @@ function SourceCard({ source }: { source: OnlyFansSourceSummary }) {
           className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-md"
           style={{ background: `${color}20`, color }}
         >
-          {source.claims > 0 ? `${source.claims.toLocaleString("en-US")} claims` : "—"}
+          {source.subs > 0 ? `${source.subs.toLocaleString("en-US")} subs` : "—"}
         </span>
       </div>
       <div className="grid grid-cols-2 gap-2 mb-3">
         <Stat label="Revenue" value={formatUSD(source.revenue, { fractional: false })} />
         <Stat label="Spend" value={formatUSD(source.spend, { fractional: true })} />
-        <Stat label="Rev / claim" value={source.revenuePerClaim === null ? "—" : formatUSD(source.revenuePerClaim, { fractional: true })} />
-        <Stat label="Cost / claim" value={source.costPerClaim === null ? "—" : formatUSD(source.costPerClaim, { fractional: true })} />
+        <Stat label="Rev / sub" value={source.revenuePerSub === null ? "—" : formatUSD(source.revenuePerSub, { fractional: true })} />
+        <Stat label="Cost / sub" value={source.costPerSub === null ? "—" : formatUSD(source.costPerSub, { fractional: true })} />
       </div>
       <Sparkline data={source.weekly} color={color} />
     </div>
